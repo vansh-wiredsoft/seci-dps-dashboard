@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Business Development</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.datatables.net/2.3.4/css/dataTables.dataTables.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      .table-container {
+        margin-top: 20px;
+      }
+      .milestones-section {
+        display: none;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-top: none;
+      }
+      .milestones-section.active {
+        display: table-row;
+      }
+      .view-milestones-btn i {
+        margin-left: 5px;
+      }
+    </style>
+  </head>
+  <body class="p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="mb-0">Business Development</h2>
+      <div>
+        <a href="/home.html" class="btn btn-secondary me-2">Back to Home</a>
+        <a href="/add_bd_entry.html" class="btn btn-primary">Add Entry</a>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="dataTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link active"
+          id="bd-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#bd-entries"
+          type="button"
+          role="tab"
+          aria-controls="bd-entries"
+          aria-selected="true"
+        >
+          Business Development Entries
+        </button>
+      </li>
+    </ul>
+
+    <!-- Tab content -->
+    <div class="tab-content" id="dataTabsContent">
+      <div
+        class="tab-pane fade show active"
+        id="bd-entries"
+        role="tabpanel"
+        aria-labelledby="bd-tab"
+      >
+        <div class="table-container" id="tableContainer">
+          <!-- Table will be generated here -->
+        </div>
+      </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/2.3.4/js/dataTables.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        let allEntries = [];
+        let dataTable = null;
+
+        // Initialize tooltips after table is created
+        function initializeTooltips() {
+          $('[data-bs-toggle="tooltip"]').each(function () {
+            new bootstrap.Tooltip(this);
+          });
+        }
+
+        fetchBusinessDevelopmentEntries();
+
+        function fetchBusinessDevelopmentEntries() {
+          authFetch("/api/data/bd/entry/all")
+            .then((res) => res.json())
+            .then((resObj) => {
+              allEntries = resObj.data;
+              initializeDataTable(allEntries);
+            })
+            .catch((err) => {
+              console.error("Error fetching entries:", err);
+              alert("Failed to load entries.");
+            });
+        }
+
+        function initializeDataTable(items) {
+          if (dataTable) {
+            dataTable.destroy(); // Destroy existing DataTable instance
+          }
+
+          // Create table structure
+          const tableContainer = $("#tableContainer");
+          tableContainer.empty();
+
+          const table = $("<table>")
+            .attr("id", "bdTable")
+            .addClass("table table-bordered table-striped");
+          const thead = $("<thead>").addClass("table-dark");
+          const tbody = $("<tbody>").attr("id", "bdTableBody");
+
+          // Create header row
+          const headerRow = $("<tr>");
+          const headers = [
+            { text: "S. No.", sortable: false },
+            { text: "Business Partner", sortable: true },
+            { text: "Location", sortable: true },
+            { text: "Status and Action Plan", sortable: true },
+            { text: "Pending With", sortable: true },
+            {
+              text: "Capacity (in MW)",
+              sortable: true,
+              attributes: {
+                "data-bs-toggle": "tooltip",
+                title: "Please convert MWh into MW by dividing MWh by hours",
+              },
+            },
+            { text: "Target", sortable: true },
+            { text: "Actions", sortable: false },
+          ];
+
+          headers.forEach((header) => {
+            const th = $("<th>").text(header.text);
+            if (header.attributes) {
+              th.attr(header.attributes);
+            }
+            headerRow.append(th);
+          });
+
+          thead.append(headerRow);
+          table.append(thead).append(tbody);
+          tableContainer.append(table);
+
+          // Populate table body
+          if (!Array.isArray(items) || items.length === 0) {
+            const tr = $("<tr>");
+            tr.append(
+              $("<td>")
+                .attr("colspan", 8)
+                .addClass("text-center text-muted")
+                .text("No entries found.")
+            );
+            tbody.append(tr);
+            initializeTooltips();
+            return;
+          }
+
+          items.forEach((item, index) => {
+            const tr = $("<tr>").attr("data-entry-id", item.bd_entry_id);
+            tr.append($("<td>").text(index + 1));
+            tr.append($("<td>").text(item.business_partner));
+            tr.append($("<td>").text(item.location));
+            tr.append($("<td>").text(item.action_plan));
+            tr.append($("<td>").text(item.action_pending_with));
+            tr.append($("<td>").text(item.anticipated_capacity));
+            tr.append($("<td>").text(item.target));
+
+            const actionsTd = $("<td>");
+            const viewMilestonesBtn = $("<button>")
+              .addClass("btn btn-sm btn-info me-2 view-milestones-btn")
+              .attr({
+                "data-bd-entry-id": item.bd_entry_id,
+                "data-business-partner": item.business_partner,
+              })
+              .html(`View Milestones <i class="bi bi-chevron-down"></i>`)
+              .on("click", () =>
+                toggleMilestones(item.bd_entry_id, item.business_partner, this)
+              );
+
+            const editBtn = $("<button>")
+              .addClass("btn btn-sm btn-warning")
+              .text("Edit")
+              .on("click", () => editEntry(item.bd_entry_id));
+
+            const deleteBtn = $("<button>")
+              .addClass("btn btn-sm btn-danger")
+              .text("Delete")
+              .on("click", () => deleteEntry(item.bd_entry_id));
+
+            actionsTd.append(viewMilestonesBtn, editBtn, deleteBtn);
+            tr.append(actionsTd);
+            tbody.append(tr);
+
+            // Create milestones row
+            const milestonesRow = $("<tr>")
+              .attr("id", `milestones-${item.bd_entry_id}`)
+              .addClass("milestones-section")
+              .attr("data-entry-id", item.bd_entry_id);
+
+            const milestonesTd = $("<td>").attr("colspan", 8);
+            const milestonesContent = $("<div>")
+              .append($("<h5>").text(`${item.business_partner}'s Milestones`))
+              .append(
+                $("<div>")
+                  .addClass("d-flex justify-content-end mb-2")
+                  .append(
+                    $("<button>")
+                      .addClass("btn btn-sm btn-success")
+                      .text("+ Add Milestone")
+                      .on(
+                        "click",
+                        () =>
+                          (window.location.href = `/add_bd_milestone.html?bd_entry_id=${item.bd_entry_id}`)
+                      )
+                  )
+              );
+
+            const milestonesTable = $("<table>").addClass(
+              "table table-bordered"
+            );
+            const milestonesThead = $("<thead>");
+            const milestonesHeaderRow = $("<tr>")
+              .append($("<th>").text("S. No."))
+              .append($("<th>").text("Milestone Name"))
+              .append($("<th>").text("Date"))
+              .append($("<th>").text("Actions"));
+            milestonesThead.append(milestonesHeaderRow);
+
+            const milestonesTbody = $("<tbody>").attr(
+              "id",
+              `milestoneTableBody-${item.bd_entry_id}`
+            );
+            milestonesTable.append(milestonesThead, milestonesTbody);
+            milestonesContent.append(milestonesTable);
+            milestonesTd.append(milestonesContent);
+            milestonesRow.append(milestonesTd);
+            tbody.append(milestonesRow);
+          });
+
+          // Initialize DataTable using new DataTable() syntax
+          dataTable = new DataTable("#bdTable", {
+            paging: true,
+            searching: true,
+            ordering: true,
+            info: true,
+            columnDefs: [
+              { orderable: false, targets: [0, 7] }, // Disable sorting on S. No. and Actions
+            ],
+            order: [[0, "asc"]], // Default sort by S. No.
+            language: {
+              search: "Search entries:",
+              searchPlaceholder: "Search entries...",
+            },
+          });
+
+          initializeTooltips();
+        }
+
+        window.toggleMilestones = function (
+          bd_entry_id,
+          business_partner,
+          button
+        ) {
+          const milestonesRow = $(`#milestones-${bd_entry_id}`);
+          const isActive = milestonesRow.hasClass("active");
+
+          if (!isActive) {
+            authFetch(`/api/data/bd/milestone/one/${bd_entry_id}`)
+              .then((res) => res.json())
+              .then((resObj) => {
+                populateMilestoneTable(resObj.data, bd_entry_id);
+                milestonesRow.addClass("active");
+                $(button).html(
+                  `Hide Milestones <i class="bi bi-chevron-up"></i>`
+                );
+                dataTable.draw();
+              })
+              .catch((err) => {
+                console.error("Error loading milestones:", err);
+                alert("Failed to load milestones.");
+              });
+          } else {
+            milestonesRow.removeClass("active");
+            $(button).html(
+              `View Milestones <i class="bi bi-chevron-down"></i>`
+            );
+            dataTable.draw();
+          }
+        };
+
+        window.deleteEntry = function (bd_entry_id) {
+          if (!confirm("Are you sure you want to delete this entry?")) return;
+
+          authFetch(`/api/data/bd/entry/delete/${bd_entry_id}`, {
+            method: "DELETE",
+          })
+            .then((res) => {
+              if (res.ok) {
+                alert("Entry deleted successfully.");
+                fetchBusinessDevelopmentEntries();
+              } else {
+                return res.json().then((resObj) => {
+                  throw new Error(resObj.message || "Failed to delete entry.");
+                });
+              }
+            })
+            .catch((err) => {
+              console.error("Error deleting entry:", err);
+              alert("Failed to delete entry: " + err.message);
+            });
+        };
+
+        window.editEntry = function (bd_entry_id) {
+          const entry = allEntries.find((e) => e.bd_entry_id === bd_entry_id);
+          if (!entry) {
+            alert("Entry not found.");
+            return;
+          }
+
+          const business_partner = prompt(
+            "Enter Business Partner:",
+            entry.business_partner
+          );
+          if (business_partner === null) return;
+
+          const location = prompt("Enter Location:", entry.location);
+          if (location === null) return;
+
+          const action_plan = prompt("Enter Action Plan:", entry.action_plan);
+          if (action_plan === null) return;
+
+          const action_pending_with = prompt(
+            "Enter Pending With:",
+            entry.action_pending_with
+          );
+          if (action_pending_with === null) return;
+
+          const anticipated_capacity = parseFloat(
+            prompt(
+              "Enter Anticipated Capacity (in MW):",
+              entry.anticipated_capacity
+            )
+          );
+          if (isNaN(anticipated_capacity)) {
+            alert("Invalid capacity.");
+            return;
+          }
+
+          const target = prompt("Enter Target:", entry.target);
+          if (target === null) return;
+
+          authFetch(`/api/data/bd/entry/edit/${bd_entry_id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              business_partner,
+              location,
+              action_plan,
+              action_pending_with,
+              anticipated_capacity,
+              target,
+            }),
+          })
+            .then((res) => {
+              if (!res.ok) {
+                return res.json().then((err) => {
+                  throw new Error(err.message || "Failed to update entry.");
+                });
+              }
+              return res.json();
+            })
+            .then((data) => {
+              alert("Entry updated successfully.");
+              fetchBusinessDevelopmentEntries();
+            })
+            .catch((err) => {
+              console.error("Error updating entry:", err);
+              alert("Failed to update entry: " + err.message);
+            });
+        };
+
+        function populateMilestoneTable(milestones, bd_entry_id) {
+          const tbody = $(`#milestoneTableBody-${bd_entry_id}`);
+          tbody.empty();
+
+          if (!Array.isArray(milestones) || milestones.length === 0) {
+            tbody.append(
+              $("<tr>").append(
+                $("<td>")
+                  .attr("colspan", 4)
+                  .addClass("text-center text-muted")
+                  .text("No milestones found.")
+              )
+            );
+            return;
+          }
+
+          milestones.forEach((item, index) => {
+            const tr = $("<tr>");
+            tr.append($("<td>").text(index + 1));
+            tr.append($("<td>").text(item.milestone_name));
+            tr.append($("<td>").text(formatToISTDate(item.milestone_date)));
+            const actionsTd = $("<td>");
+            actionsTd.append(
+              $("<button>")
+                .addClass("btn btn-sm btn-warning me-2")
+                .text("Edit")
+                .on("click", () => editMilestone(item.milestone_id))
+            );
+            actionsTd.append(
+              $("<button>")
+                .addClass("btn btn-sm btn-danger")
+                .text("Delete")
+                .on("click", () =>
+                  deleteMilestone(item.milestone_id, bd_entry_id)
+                )
+            );
+            tr.append(actionsTd);
+            tbody.append(tr);
+          });
+        }
+
+        window.editMilestone = function (milestoneId) {
+          const row = $(
+            `button[onclick*="editMilestone('${milestoneId}'"]`
+          ).closest("tr");
+          if (!row.length) {
+            alert("Milestone row not found.");
+            return;
+          }
+
+          const currentName = row.find("td:eq(1)").text() || "";
+          const currentDate = row.find("td:eq(2)").text() || "";
+
+          const milestone_name = prompt("Enter milestone name:", currentName);
+          if (milestone_name === null) return;
+
+          const milestone_date_input = prompt(
+            "Enter milestone date (YYYY-MM-DD):",
+            formatDateToInput(currentDate)
+          );
+          if (
+            !milestone_date_input ||
+            isNaN(new Date(milestone_date_input).getTime())
+          ) {
+            alert("Invalid date format.");
+            return;
+          }
+
+          authFetch(`/api/data/bd/milestone/edit/${milestoneId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              milestone_name,
+              milestone_date: milestone_date_input,
+              is_active: true,
+            }),
+          })
+            .then((res) => {
+              if (!res.ok) {
+                return res.json().then((err) => {
+                  throw new Error(err.message || "Failed to update milestone.");
+                });
+              }
+              return res.json();
+            })
+            .then((data) => {
+              alert("Milestone updated successfully.");
+              const bdEntryId = row
+                .closest("tr.milestones-section")
+                .data("entryId");
+              if (bdEntryId) {
+                const toggleBtn = $(`[data-bd-entry-id="${bdEntryId}"]`);
+                if (toggleBtn.length) {
+                  toggleMilestones(
+                    bdEntryId,
+                    toggleBtn.attr("data-business-partner"),
+                    toggleBtn[0]
+                  );
+                  toggleMilestones(
+                    bdEntryId,
+                    toggleBtn.attr("data-business-partner"),
+                    toggleBtn[0]
+                  );
+                }
+              }
+            })
+            .catch((err) => {
+              console.error("Error updating milestone:", err);
+              alert("Failed to update milestone: " + err.message);
+            });
+        };
+
+        window.deleteMilestone = function (milestoneId, bdEntryId) {
+          if (!confirm("Are you sure you want to delete this milestone?"))
+            return;
+
+          authFetch(`/api/data/bd/milestone/delete/${milestoneId}`, {
+            method: "DELETE",
+          })
+            .then((res) => {
+              if (res.ok) {
+                alert("Milestone deleted successfully.");
+                const button = $(`[data-bd-entry-id="${bdEntryId}"]`);
+                toggleMilestones(
+                  bdEntryId,
+                  button.attr("data-business-partner"),
+                  button[0]
+                );
+                toggleMilestones(
+                  bdEntryId,
+                  button.attr("data-business-partner"),
+                  button[0]
+                );
+              } else {
+                return res.json().then((resObj) => {
+                  throw new Error(
+                    resObj.message || "Failed to delete milestone."
+                  );
+                });
+              }
+            })
+            .catch((err) => {
+              console.error("Error deleting milestone:", err);
+              alert("Failed to delete milestone: " + err.message);
+            });
+        };
+
+        function authFetch(url, options = {}) {
+          const token = localStorage.getItem("token");
+          const defaultHeaders = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          };
+
+          return fetch(url, {
+            ...options,
+            headers: {
+              ...defaultHeaders,
+              ...(options.headers || {}),
+            },
+          }).then((res) => {
+            if (res.status === 401) {
+              alert("Session expired. Redirecting to login...");
+              localStorage.clear();
+              window.location.href = "/";
+              throw new Error("Unauthorized");
+            }
+            return res;
+          });
+        }
+
+        function formatToISTDate(dateString) {
+          if (!dateString) return "-";
+          const date = new Date(dateString);
+          const istOffset = 5.5 * 60 * 60000;
+          const istDate = new Date(date.getTime() + istOffset);
+          const day = String(istDate.getUTCDate()).padStart(2, "0");
+          const month = String(istDate.getUTCMonth() + 1).padStart(2, "0");
+          const year = istDate.getUTCFullYear();
+          return `${day}/${month}/${year}`;
+        }
+
+        function formatDateToInput(dateString) {
+          if (!dateString.includes("/")) return dateString;
+          const [day, month, year] = dateString.split("/");
+          return `${year}-${month}-${day}`;
+        }
+      });
+    </script>
+  </body>
+</html>
