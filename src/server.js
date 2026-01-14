@@ -114,6 +114,7 @@ function startExpressServer() {
   app.use("/api/data/reia/documents", require("./routes/document_upload"));
   app.use("/api/data/om/excel/upload", require("./routes/document_upload"));
   app.use("/api/data/om/solar/bess", require("./routes/document_upload"));
+  app.use("/api/data/om/solar", require("./routes/document_upload"));
 
   app.use(express.json({ limit: "100mb" }));
   app.use(express.urlencoded({ extended: true, limit: "100mb" }));

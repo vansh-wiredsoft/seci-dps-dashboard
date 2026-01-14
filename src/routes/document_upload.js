@@ -7,10 +7,13 @@ const {
   REIADocuments,
   OMDGR,
   OMDGRSolarBESS,
+  OMDGRSolar,
 } = require("../models").models;
 
 const { verifyToken } = require("../middleware/verify_token");
 const XLSX = require("xlsx");
+const { v4: uuidv4 } = require("uuid");
+const { Op } = require("sequelize");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -294,6 +297,108 @@ const upsertOMSolarBESSData = async (req, res) => {
   }
 };
 
+const uploadOMSolarFromExcel = async (req, res) => {
+  try {
+    console.log("Solar, Upload from excel called");
+
+    const { dept_id, statistic_id, entity_id } = req.query;
+
+    if (!dept_id || !statistic_id || !entity_id) {
+      return res.status(400).json({
+        message: "dept_id, statistic_id and entity_id are required",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "Excel file is required",
+      });
+    }
+
+    /* ---------- Helpers ---------- */
+    const normalizeDate = (dateStr) => {
+      // expects DD/MM/YYYY
+      const [dd, mm, yyyy] = dateStr.split("/");
+      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    };
+
+    /* ---------- Read Excel ---------- */
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      raw: false,
+      defval: null,
+    });
+
+    if (!rows.length) {
+      return res.status(400).json({ message: "Excel file is empty" });
+    }
+
+    let inserted = 0;
+    let skipped = 0;
+
+    /* ---------- Process Rows ---------- */
+    for (const row of rows) {
+      try {
+        const normalizedDate = normalizeDate(row.date);
+
+        // Check if record already exists for SAME entity + date
+        const exists = await OMDGRSolar.findOne({
+          where: {
+            dept_id,
+            statistic_id,
+            entity_id,
+            date: normalizedDate,
+          },
+        });
+
+        if (exists) {
+          skipped++;
+          continue;
+        }
+
+        await OMDGRSolar.create({
+          dept_id,
+          statistic_id,
+          entity_id,
+          om_dgr_solar_id: uuidv4(),
+          date: normalizedDate,
+          days: row.days,
+          generation: row.generation,
+          radiation: row.radiation,
+          machine_availability: row.machine_availability,
+          grid_availability: row.grid_availability,
+          peak_power: row.peak_power,
+          cumulative_generation: row.cumulative_generation,
+          cuf: row.cuf,
+          cuf_till_date: row.cuf_till_date,
+          is_active: 1,
+        });
+
+        inserted++;
+      } catch (rowError) {
+        console.error("Row failed:", row, rowError.message);
+        skipped++;
+      }
+    }
+
+    return res.status(200).json({
+      message: "OM Solar Excel processed successfully",
+      summary: {
+        totalRows: rows.length,
+        inserted,
+        skipped,
+      },
+    });
+  } catch (error) {
+    console.error("Excel Upload Error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+};
+
 const express = require("express");
 const { json } = require("sequelize");
 const router = express.Router();
@@ -324,6 +429,13 @@ router.post(
   verifyToken,
   upload.single("excelFile"),
   upsertOMSolarBESSData
+);
+
+router.post(
+  "/upload",
+  // verifyToken,
+  upload.single("excelFile"),
+  uploadOMSolarFromExcel
 );
 
 module.exports = router;

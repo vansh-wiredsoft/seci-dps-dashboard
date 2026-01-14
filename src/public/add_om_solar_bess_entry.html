@@ -224,6 +224,7 @@
               id="cumulative_generation"
               name="cumulative_generation"
               required
+              disabled
             />
           </div>
         </div>
@@ -239,6 +240,7 @@
               id="cumulative_bess_export"
               name="cumulative_bess_export"
               required
+              disabled
             />
           </div>
 
@@ -252,6 +254,7 @@
               id="cumulative_bess_import"
               name="cumulative_bess_import"
               required
+              disabled
             />
           </div>
         </div>
@@ -265,6 +268,7 @@
               id="daily_cuf_worc"
               name="daily_cuf_worc"
               required
+              disabled
             />
           </div>
 
@@ -288,7 +292,109 @@
       const dept_id = params.get("dept_id");
       const statistic_id = params.get("statistic_id");
       const entity_id = params.get("entity_id");
-      document.getElementById("date").addEventListener("change", checkData);
+      let lastCumulativeGeneration = 0;
+      const START_DAY = 22;
+      const START_MONTH = 6; // July (0-based index)
+      let omSolarBESSAllData = [];
+      const dateInput = document.getElementById("date");
+      const daysInput = document.getElementById("days");
+      let isUpdate = false;
+      let lastCumulativeBessImport = 0;
+      let lastCumulativeBessExport = 0;
+
+      // dateInput.addEventListener("change", calculateDays);
+      dateInput.addEventListener("change", () => {
+        calculateDays();
+
+        if (!omSolarBESSAllData || omSolarBESSAllData.length === 0) return;
+
+        const selectedDate = dateInput.value;
+
+        console.log("selectedDate", selectedDate);
+        console.log("omSolarBESSAllDate", omSolarBESSAllData[0].date);
+
+        const existingEntry = omSolarBESSAllData.find(
+          (item) => toUTCDateOnly(item.date) === selectedDate
+        );
+
+        if (existingEntry) {
+          alert("data found for this date");
+          populateFormFromExistingData(existingEntry);
+          isUpdate = true;
+        } else {
+          document.getElementById("solar-bess-form").reset();
+          dateInput.value = selectedDate;
+          calculateDays();
+
+          lastCumulativeGeneration = 0;
+          document.getElementById("submit-button").textContent = "Save";
+          isUpdate = false;
+        }
+      });
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+        calculateDays();
+        setDefaultYesterdayDate();
+        loadLastUpdatedData();
+        getOmSolarBESSAllData();
+      });
+
+      async function getOmSolarBESSAllData() {
+        let omSolarBESSResponse = await authFetch(
+          `/api/data/om/solar_bess/all?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`
+        );
+        let omSolarBESSDataJSON = await omSolarBESSResponse.json();
+        omSolarBESSAllData = omSolarBESSDataJSON.data;
+        console.log("omSolarBESSAllData", omSolarBESSAllData);
+      }
+
+      async function loadLastUpdatedData() {
+        try {
+          const response = await authFetch(
+            `api/data/om/solar_bess/data/summary?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
+            {
+              method: "GET",
+            }
+          );
+
+          if (response.status === 204) {
+            console.log("No previous data found");
+            return;
+          }
+
+          const result = await response.json();
+          const entry = result.data;
+
+          document.getElementById("plant_availability").value = 100;
+          document.getElementById("bess_availability").value = 100;
+          document.getElementById("grid_availability").value = 100;
+          lastCumulativeGeneration = Number(entry.cumulative_generation) || 0;
+          document.getElementById("cumulative_generation").value =
+            lastCumulativeGeneration;
+          lastCumulativeBessExport = Number(entry.cumulative_bess_export) || 0;
+          document.getElementById("cumulative_bess_export").value =
+            lastCumulativeBessExport;
+          lastCumulativeBessImport = Number(entry.cumulative_bess_import) || 0;
+          document.getElementById("cumulative_bess_import").value =
+            lastCumulativeBessImport;
+          document.getElementById("daily_cuf_worc").value =
+            entry.daily_cuf_worc || "";
+          document.getElementById("cuf_till_date").value =
+            entry.cuf_till_date || "";
+
+          document.getElementById("submit-button").textContent = "Save";
+        } catch (error) {
+          console.error("Error loading last updated data:", error);
+        }
+      }
 
       function authFetch(url, options = {}) {
         const token = localStorage.getItem("token");
@@ -314,57 +420,6 @@
         });
       }
 
-      async function checkData() {
-        const date = document.getElementById("date").value;
-
-        const dateData = { requestedDate: new Date(date) }; // Create an object with the date
-
-        const response = await authFetch(
-          `api/data/om/solar_bess/date/one?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
-          {
-            method: "POST",
-            body: JSON.stringify(dateData),
-          }
-        );
-
-        let dataForSelectedDate = {};
-        if (response.status !== 204) {
-          const data = await response.json();
-          dataForSelectedDate = data.data;
-        } else {
-          console.log("no data found");
-        }
-
-        if (dataForSelectedDate) {
-          const entry = dataForSelectedDate;
-          document.getElementById("days").value = entry.days;
-          document.getElementById("generation").value = entry.generation;
-          document.getElementById("radiation").value = entry.radiation;
-          document.getElementById("bess_export").value = entry.bess_export;
-          document.getElementById("bess_import").value = entry.bess_import;
-          document.getElementById("plant_availability").value =
-            entry.plant_availability;
-          document.getElementById("bess_availability").value =
-            entry.bess_availability;
-          document.getElementById("grid_availability").value =
-            entry.grid_availability;
-          document.getElementById("peak_power").value = entry.peak_power;
-          document.getElementById("cumulative_generation").value =
-            entry.cumulative_generation;
-          document.getElementById("cumulative_bess_export").value =
-            entry.cumulative_bess_export;
-          document.getElementById("cumulative_bess_import").value =
-            entry.cumulative_bess_import;
-          document.getElementById("daily_cuf_worc").value =
-            entry.daily_cuf_worc;
-          document.getElementById("cuf_till_date").value = entry.cuf_till_date;
-          document.getElementById("submit-button").textContent = "Update";
-        } else {
-          document.getElementById("solar-bess-form").reset();
-          document.getElementById("submit-button").textContent = "Save";
-        }
-      }
-
       document
         .getElementById("solar-bess-form")
         .addEventListener("submit", async function (event) {
@@ -374,6 +429,23 @@
           const formData = new FormData(
             document.getElementById("solar-bess-form")
           );
+          formData.append(
+            "cumulative_generation",
+            document.getElementById("cumulative_generation").value
+          );
+          formData.append(
+            "cumulative_bess_export",
+            document.getElementById("cumulative_bess_export").value
+          );
+          formData.append(
+            "cumulative_bess_import",
+            document.getElementById("cumulative_bess_import").value
+          );
+          formData.append(
+            "daily_cuf_worc",
+            document.getElementById("daily_cuf_worc").value
+          );
+          formData.append("action", isUpdate ? "update" : "add");
           const formValues = Object.fromEntries(formData);
 
           const response = await authFetch(
@@ -394,6 +466,114 @@
             alert(result.error || "Something went wrong.");
           }
         });
+
+      document.getElementById("bess_import").addEventListener("input", () => {
+        const bessImport =
+          Number(document.getElementById("bess_import").value) || 0;
+
+        const cumulativeBessImport = lastCumulativeBessImport + bessImport;
+
+        document.getElementById("cumulative_bess_import").value =
+          cumulativeBessImport;
+      });
+
+      document.getElementById("bess_export").addEventListener("input", () => {
+        const bessExport =
+          Number(document.getElementById("bess_export").value) || 0;
+
+        const cumulativeBessExport = lastCumulativeBessExport + bessExport;
+
+        document.getElementById("cumulative_bess_export").value =
+          cumulativeBessExport;
+      });
+
+      // Cumulative Generation Calculation
+      document.getElementById("generation").addEventListener("input", () => {
+        const generation =
+          Number(document.getElementById("generation").value) || 0;
+
+        const cumulative = lastCumulativeGeneration + generation;
+        document.getElementById("cumulative_generation").value = cumulative;
+
+        const dailyCUF = (generation * 100) / (1440 * 24);
+        document.getElementById("daily_cuf_worc").value = dailyCUF.toFixed(4);
+      });
+
+      function setDefaultYesterdayDate() {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+
+        document.getElementById("date").value = `${yyyy}-${mm}-${dd}`;
+      }
+
+      function calculateDays() {
+        if (!dateInput.value) return;
+
+        const selectedDate = new Date(dateInput.value);
+        let year = selectedDate.getFullYear();
+
+        let startDate = new Date(year, START_MONTH, START_DAY);
+
+        if (selectedDate < startDate) {
+          startDate = new Date(year - 1, START_MONTH, START_DAY);
+        }
+
+        const diffTime = selectedDate - startDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        daysInput.value = diffDays;
+      }
+
+      function toInputDateFormat(isoDate) {
+        const d = new Date(isoDate);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function populateFormFromExistingData(entry) {
+        document.getElementById("days").value = entry.days ?? "";
+        document.getElementById("generation").value = entry.generation ?? "";
+        document.getElementById("radiation").value = entry.radiation ?? "";
+        document.getElementById("bess_export").value = entry.bess_export ?? "";
+        document.getElementById("bess_import").value = entry.bess_import ?? "";
+        document.getElementById("plant_availability").value =
+          entry.plant_availability ?? 100;
+        document.getElementById("bess_availability").value =
+          entry.bess_availability ?? 100;
+        document.getElementById("grid_availability").value =
+          entry.grid_availability ?? 100;
+        document.getElementById("peak_power").value = entry.peak_power ?? "";
+
+        document.getElementById("cumulative_generation").value =
+          entry.cumulative_generation ?? 0;
+        document.getElementById("cumulative_bess_export").value =
+          entry.cumulative_bess_export ?? "";
+        document.getElementById("cumulative_bess_import").value =
+          entry.cumulative_bess_import ?? "";
+        document.getElementById("daily_cuf_worc").value =
+          entry.daily_cuf_worc ?? "";
+        document.getElementById("cuf_till_date").value =
+          entry.cuf_till_date ?? "";
+
+        // IMPORTANT: update last cumulative for further calculations
+        lastCumulativeGeneration = Number(entry.cumulative_generation) || 0;
+
+        document.getElementById("submit-button").textContent = "Update";
+      }
+      function toUTCDateOnly(dateStr) {
+        const d = new Date(dateStr);
+        return new Date(
+          Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+        )
+          .toISOString()
+          .split("T")[0];
+      }
     </script>
   </body>
 </html>

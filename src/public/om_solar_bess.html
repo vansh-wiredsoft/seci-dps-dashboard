@@ -258,27 +258,27 @@
           .getElementById("excelInput")
           .addEventListener("change", function (event) {
             const file = event.target.files[0]; // get the selected file
-            
+
             if (!file) return;
 
             // send the selected file to the server to be processed
             const formData = new FormData();
             formData.append("excelFile", file);
 
-            // fileAuthFetch(
-            //   `api/data/om/solar/bess/upsert?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
-            //   {
-            //     method: "POST",
-            //     body: formData,
-            //   }
-            // )
-            //   .then((data) => {
-            //     alert("O&M Solar + BESS Data has been uploaded ");
-            //     window.location.reload();
-            //   })
-            //   .catch((error) => {
-            //     console.error("Upload error:", error);
-            //   });
+            fileAuthFetch(
+              `api/data/om/solar/bess/upsert?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
+              {
+                method: "POST",
+                body: formData,
+              }
+            )
+              .then((data) => {
+                alert("O&M Solar + BESS Data has been uploaded ");
+                window.location.reload();
+              })
+              .catch((error) => {
+                console.error("Upload error:", error);
+              });
           });
 
         let response = await authFetch(
@@ -335,6 +335,11 @@
 
         return `${day}/${month}/${year}`;
       }
+      function toYYYYMMDD(date) {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        return d.toISOString().slice(0, 10);
+      }
 
       function formatDateToDDMonth(dateString) {
         const date = new Date(dateString);
@@ -353,14 +358,22 @@
           return;
         }
 
-        const selectedDate = new Date(selectedDateValue);
-        const isoString = selectedDate.toISOString(); //convert date to system stored format
+        const selectedDateKey = selectedDateValue;
 
-        // Sort data by date ascending
         omSolarBESSData.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const selectedEntry = omSolarBESSData.find(
+          (d) => toYYYYMMDD(d.date) === selectedDateKey
+        );
 
-        // 1️⃣ Find selected date record
-        const selectedEntry = omSolarBESSData.find((d) => d.date === isoString);
+        console.log("selectedEntry", selectedEntry);
+
+        if (!selectedEntry) {
+          alert("No data available for the selected date.");
+          return;
+        }
+
+        updateTable1(selectedEntry);
+
         if (!selectedEntry) {
           alert("No data available for the selected date.");
           return;
@@ -370,11 +383,11 @@
         updateTable1(selectedEntry);
 
         // Current year window
-        const currentStart = new Date(selectedDate);
+        const currentStart = new Date(selectedDateValue);
         currentStart.setDate(currentStart.getDate() - 7);
 
         // Previous year window
-        const prevYearDate = new Date(selectedDate);
+        const prevYearDate = new Date(selectedDateValue);
         prevYearDate.setFullYear(prevYearDate.getFullYear() - 1);
 
         const prevStart = new Date(prevYearDate);
@@ -383,7 +396,7 @@
         // Current year last 7 days
         const currentYearData = omSolarBESSData.filter((d) => {
           const dDate = new Date(d.date);
-          return dDate >= currentStart && dDate <= selectedDate;
+          return dDate >= currentStart && dDate <= selectedDateValue;
         });
 
         // Previous year same 7-day window
@@ -398,57 +411,33 @@
         });
       }
 
-      function updateTable1(selectedOMSolarBESSData) {
-        // Get the table element
-
+      function updateTable1(d) {
         const table1 = document.getElementById("table1");
-        const rowCount = table1.rows.length;
+
+        while (table1.rows.length > 4) {
+          table1.deleteRow(4);
+        }
         const row = table1.insertRow(-1);
 
-        for (let i = rowCount - 1; i >= 4; i--) {
-          table1.deleteRow(i);
-        }
-
-        // Extract data from selectedOMSolarBESSData
-        const cell1 = selectedOMSolarBESSData.radiation; // GHI
-        const cell2 = (selectedOMSolarBESSData.generation / 1e6).toFixed(2); // Exported generation (in MU)
-        const cell3 = selectedOMSolarBESSData.daily_cuf_worc; // CUF (Capacity Utilization Factor)
-        const cell4 = selectedOMSolarBESSData.peak_power; // Peak Power
-        const cell5 = selectedOMSolarBESSData.bess_export; // BESS Exported Energy
-        const cell6 = selectedOMSolarBESSData.bess_import; // BESS Imported Energy
-        const cell7 = (
-          selectedOMSolarBESSData.cumulative_generation / 1e6
-        ).toFixed(2); // Cumulative Generation (in MU)
-        const cell8 = selectedOMSolarBESSData.cuf_till_date; // Cumulative CUF
-        const cell9 = selectedOMSolarBESSData.cumulative_bess_export; // Cumulative BESS Export
-        const cell10 = selectedOMSolarBESSData.cumulative_bess_import; // Cumulative BESS Import
-        const cell11 = ""; // Empty placeholder for potential future data
-        const cell12 = ""; // Empty placeholder
-        const cell13 = ""; // Empty placeholder
-        const cell14 = "";
-
-        // Create and append the cells to the new row
         const cells = [
-          cell1,
-          cell2,
-          cell3,
-          cell4,
-          cell5,
-          cell6,
-          cell7,
-          cell8,
-          cell9,
-          cell10,
-          cell11,
-          cell12,
-          cell13,
-          cell14,
+          d.radiation ?? "-",
+          (d.generation / 1e6).toFixed(2),
+          d.daily_cuf_worc,
+          d.peak_power,
+          d.bess_export,
+          d.bess_import,
+          (d.cumulative_generation / 1e6).toFixed(2),
+          d.cuf_till_date,
+          d.cumulative_bess_export,
+          d.cumulative_bess_import,
+          "-",
+          "-",
+          "-",
+          "-",
         ];
 
-        // Loop through the cells array and append them to the row
-        cells.forEach((cellData, index) => {
-          const cell = row.insertCell(index); // Insert a new cell at each index
-          cell.textContent = cellData; // Set the cell's text content to the corresponding data
+        cells.forEach((val, i) => {
+          row.insertCell(i).textContent = val;
         });
       }
 

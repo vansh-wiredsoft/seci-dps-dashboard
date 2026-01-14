@@ -79,6 +79,102 @@
         font-size: 0.85rem;
         color: #888;
       }
+
+      .table {
+        font-size: 13px;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .main-header {
+        background: linear-gradient(90deg, #ffffff, #99b6e2);
+        color: #fff;
+        font-size: 14px;
+        letter-spacing: 0.3px;
+      }
+
+      .solar-header {
+        background: linear-gradient(180deg, #fff3cd, #ffe69c);
+        color: #664d03;
+        border-color: #ffda6a;
+      }
+
+      .bess-header {
+        background: linear-gradient(180deg, #d1e7dd, #a3cfbb);
+        color: #0f5132;
+        border-color: #75b798;
+      }
+
+      .logo-cell {
+        background: linear-gradient(180deg, #ffffff, #f1f4f9);
+        border-right: 2px solid #dee2e6;
+        text-align: center;
+      }
+
+      .logo-cell img {
+        filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.1));
+      }
+
+      .table tbody tr:nth-child(even) {
+        background-color: #f9fbff;
+      }
+
+      .table tbody tr:hover {
+        background-color: #eef5ff;
+        transition: background 0.2s ease-in-out;
+      }
+
+      .table tbody td {
+        text-align: center;
+        vertical-align: middle;
+      }
+
+      .site-cell {
+        text-align: left !important;
+        font-weight: 600;
+        background: linear-gradient(180deg, #f8f9fa, #eef1f5);
+        color: #0d6efd;
+      }
+
+      tbody td:nth-child(2),
+      tbody td:nth-child(3),
+      tbody td:nth-child(4),
+      tbody td:nth-child(5),
+      tbody td:nth-child(6),
+      tbody td:nth-child(7),
+      tbody td:nth-child(8),
+      tbody td:nth-child(9),
+      tbody td:nth-child(10) {
+        background-color: #fff9e6;
+      }
+
+      tbody td:nth-child(11),
+      tbody td:nth-child(12),
+      tbody td:nth-child(13),
+      tbody td:nth-child(14),
+      tbody td:nth-child(15),
+      tbody td:nth-child(16) {
+        background-color: #eaf7f1;
+      }
+
+      tbody td:last-child {
+        font-weight: 600;
+        color: #495057;
+      }
+
+      tbody td:last-child:not(:empty) {
+        background: #e7f1ff;
+        border-left: 3px solid #0b5ed7;
+      }
+
+      .note {
+        font-size: 12px;
+        color: #495057;
+        background: #ffffff;
+        padding: 8px 12px;
+        border-left: 4px solid #0b5ed7;
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body>
@@ -471,6 +567,8 @@
                         </div>
                         <div id="chartsContainer" class="row mt-4"></div>
                       `;
+
+          // char code start
           const chartsContainer = document.getElementById("chartsContainer");
           chartsContainer.innerHTML = "";
           //filter entities
@@ -596,10 +694,273 @@
                         <br/>
                         <div class="d-flex justify-content-between align-items-center mb-2">
                           <h3 class="mb-0"><b>Key Issues/Targets</b></h3>
-
-
                         </div>
                         <div id="chartsContainer" class="row mt-4"></div>
+                        <div class="container-fluid mt-4">
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover bg-white">
+
+      <thead>
+        <!-- Title Row with Logo -->
+        <tr>
+          <th class="logo-cell" rowspan="3" style="width:220px;">
+            <img src="assets/seci-logo.png" alt="SECI Logo" class="img-fluid mb-2" style="max-height:50px;">
+            <div class="fw-bold text-primary">SECI O&amp;M<br>Generation Data</div>
+            <div class="small text-muted">Date: 12 Jan 2026</div>
+          </th>
+
+          <th class="main-header" colspan="16">
+            Operational Performance Summary
+          </th>
+
+        </tr>
+
+        <!-- Group Headers -->
+        <tr>
+          <th class="solar-header" colspan="9">SOLAR PERFORMANCE</th>
+          <th class="bess-header" colspan="6">BESS PERFORMANCE</th>
+          <th rowspan="2">Remarks</th>
+        </tr>
+
+        <!-- Column Headers -->
+        <tr>
+          <!-- Solar -->
+          <th class="solar-header">GHI<br>(kWh/m²)</th>
+          <th class="solar-header">Exported<br>Gen (MU)</th>
+          <th class="solar-header">CUF<br>(%)</th>
+          <th class="solar-header">Peak<br>Power (MW)</th>
+
+          <th class="solar-header">YTD Gen<br>(MU)</th>
+          <th class="solar-header">YTD CUF<br>(%)</th>
+
+          <th class="solar-header">Last FY Gen<br>(MU)</th>
+          <th class="solar-header">Last FY CUF<br>(%)</th>
+          <th class="solar-header">Last FY Peak<br>(MW)</th>
+
+          <!-- BESS -->
+          <th class="bess-header">Net Export<br>(MWh)</th>
+          <th class="bess-header">Net Import<br>(MWh)</th>
+
+          <th class="bess-header">YTD Export<br>(MWh)</th>
+          <th class="bess-header">YTD Import<br>(MWh)</th>
+
+          <th class="bess-header">Last FY Export<br>(MWh)</th>
+          <th class="bess-header">Energy FED<br>(MWh)</th>
+        </tr>
+      </thead>
+
+      <tbody>
+  <!-- 1 -->
+  <tr>
+    <td class="site-cell">
+      Solar Project – 50 MW<br>
+      <span class="text-muted small">Bhadla, Rajasthan</span>
+    </td>
+    <td>5.62</td>
+    <td>0.21</td>
+    <td>19.4</td>
+    <td>42</td>
+    <td>612</td>
+    <td>20.1</td>
+    <td>985</td>
+    <td>21.3</td>
+    <td>48</td>
+    <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>-</td>
+  </tr>
+
+  <!-- 2 -->
+  <tr>
+    <td class="site-cell">
+      Solar Project – 100 MW<br>
+      <span class="text-muted small">Pavagada, Karnataka</span>
+    </td>
+    <td>5.11</td>
+    <td>0.39</td>
+    <td>22.1</td>
+    <td>88</td>
+    <td>1,182</td>
+    <td>22.6</td>
+    <td>1,940</td>
+    <td>23.4</td>
+    <td>96</td>
+    <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>-</td>
+  </tr>
+
+  <!-- 3 -->
+  <tr>
+    <td class="site-cell">
+      BESS Project – 20 MW / 80 MWh<br>
+      <span class="text-muted small">Leh, Ladakh</span>
+    </td>
+    <td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>12</td>
+    <td>14</td>
+    <td>2,140</td>
+    <td>2,215</td>
+    <td>3,620</td>
+    <td>11</td>
+    <td>Peak support</td>
+  </tr>
+
+  <!-- 4 -->
+  <tr>
+    <td class="site-cell">
+      Solar + BESS – 50 MW + 20 MW / 60 MWh<br>
+      <span class="text-muted small">Anantapur, AP</span>
+    </td>
+    <td>5.48</td>
+    <td>0.24</td>
+    <td>21.8</td>
+    <td>46</td>
+    <td>658</td>
+    <td>22.3</td>
+    <td>1,012</td>
+    <td>23.0</td>
+    <td>52</td>
+    <td>15</td>
+    <td>14</td>
+    <td>1,890</td>
+    <td>1,845</td>
+    <td>3,120</td>
+    <td>13</td>
+    <td>Normal</td>
+  </tr>
+
+  <!-- 5 -->
+  <tr>
+    <td class="site-cell">
+      Solar Project – 75 MW<br>
+      <span class="text-muted small">Rewa, MP</span>
+    </td>
+    <td>5.32</td>
+    <td>0.29</td>
+    <td>20.9</td>
+    <td>66</td>
+    <td>895</td>
+    <td>21.4</td>
+    <td>1,420</td>
+    <td>22.1</td>
+    <td>71</td>
+    <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>-</td>
+  </tr>
+
+  <!-- 6 -->
+  <tr>
+    <td class="site-cell">
+      BESS Project – 40 MW / 120 MWh<br>
+      <span class="text-muted small">Delhi NCR</span>
+    </td>
+    <td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>28</td>
+    <td>26</td>
+    <td>4,310</td>
+    <td>4,205</td>
+    <td>6,980</td>
+    <td>24</td>
+    <td>Grid balancing</td>
+  </tr>
+
+  <!-- 7 -->
+  <tr>
+    <td class="site-cell">
+      Solar + BESS – 100 MW + 40 MW / 120 MWh<br>
+      <span class="text-muted small">Rajnandgaon, CG</span>
+    </td>
+    <td>5.57</td>
+    <td>0.43</td>
+    <td>23.4</td>
+    <td>92</td>
+    <td>1,368</td>
+    <td>24.1</td>
+    <td>2,110</td>
+    <td>24.8</td>
+    <td>104</td>
+    <td>32</td>
+    <td>29</td>
+    <td>4,820</td>
+    <td>4,730</td>
+    <td>7,240</td>
+    <td>27</td>
+    <td>Stable</td>
+  </tr>
+
+  <!-- 8 -->
+  <tr>
+    <td class="site-cell">
+      Solar Project – 200 MW<br>
+      <span class="text-muted small">Khavda, Gujarat</span>
+    </td>
+    <td>5.74</td>
+    <td>0.86</td>
+    <td>24.6</td>
+    <td>178</td>
+    <td>2,950</td>
+    <td>25.2</td>
+    <td>4,610</td>
+    <td>26.0</td>
+    <td>192</td>
+    <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>-</td>
+  </tr>
+
+  <!-- 9 -->
+  <tr>
+    <td class="site-cell">
+      Solar + BESS – 150 MW + 50 MW / 150 MWh<br>
+      <span class="text-muted small">Jaisalmer, Rajasthan</span>
+    </td>
+    <td>5.69</td>
+    <td>0.66</td>
+    <td>24.1</td>
+    <td>138</td>
+    <td>2,240</td>
+    <td>24.7</td>
+    <td>3,580</td>
+    <td>25.3</td>
+    <td>151</td>
+    <td>41</td>
+    <td>38</td>
+    <td>5,920</td>
+    <td>5,810</td>
+    <td>8,640</td>
+    <td>35</td>
+    <td>High solar day</td>
+  </tr>
+
+  <!-- 10 -->
+  <tr>
+    <td class="site-cell">
+      BESS Project – 10 MW / 40 MWh<br>
+      <span class="text-muted small">Shillong, Meghalaya</span>
+    </td>
+    <td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+    <td>6</td>
+    <td>7</td>
+    <td>980</td>
+    <td>1,015</td>
+    <td>1,740</td>
+    <td>5</td>
+    <td>Low demand</td>
+  </tr>
+</tbody>
+
+    </table>
+  </div>
+
+  <!-- Notes -->
+  <div class="note mt-2">
+    * Data is without considering radiation correction<br>
+    ^ Data considered from 21st October
+  </div>
+
+</div>
                       `;
           const chartsContainer = document.getElementById("chartsContainer");
           chartsContainer.innerHTML = "";

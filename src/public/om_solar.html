@@ -1,21 +1,418 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>O&M Solar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Bootstrap -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+      body {
+        background: #f3f6fb;
+        font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      }
+
+      .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #0b5ed7;
+      }
+
+      .section-header {
+        background: #1f4e79;
+        color: #fff;
+        padding: 10px;
+        font-size: 20px;
+        font-weight: 600;
+        text-align: center;
+        margin-top: 30px;
+        border-radius: 4px;
+      }
+
+      table {
+        background: #fff;
+      }
+
+      thead th {
+        background: #e9ecef;
+        text-align: center;
+        vertical-align: middle;
+        font-size: 13px;
+      }
+
+      tbody td {
+        text-align: center;
+        font-size: 13px;
+      }
+
+      .note {
+        font-size: 12px;
+        color: #6c757d;
+      }
+
+      .top-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+
   <body>
-    <table border="1" cellpadding="8">
-      <tr>
-        <th rowspan="2" colspan="6">As on Date</th>
-        <th rowspan="2" colspan="4">Year Till Date</th>
-        <th rowspan="2" colspan="4">Last FY Performance</th>
-      </tr>
+    <div class="container-fluid px-4 py-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="page-title">O&M Solar</div>
 
-      <tr>
-        <th>Capacity</th>
-        <th>Type</th>
-      </tr>
+        <div class="top-actions">
+          <input
+            type="date"
+            id="dateFilter"
+            class="form-control form-control-sm"
+          />
+          <input
+            type="file"
+            id="excelUpload"
+            class="form-control form-control-sm"
+            accept=".xlsx,.xls"
+          />
+          <a
+            href="add_om_solar.html"
+            class="btn btn-success btn-sm"
+            onclick="this.href = 'add_om_solar.html' + window.location.search"
+          >
+            Add Data
+          </a>
+          <button
+            class="btn btn-secondary btn-sm"
+            onclick="window.location.href='/'"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
 
+      <div class="section-header">SECI 10MW Badi Sid</div>
+
+      <div class="table-responsive mt-3">
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th colspan="3">As on Date</th>
+              <th colspan="2">Year Till Date</th>
+              <th colspan="2">Last FY Performance</th>
+            </tr>
+            <tr>
+              <th>GHI (kWh/sq.m)</th>
+              <th>Exported Generation (MU)</th>
+              <th>CUF (%)</th>
+              <th>Exported Generation (MU)</th>
+              <th>CUF (%)</th>
+              <th>Exported Generation (MU)</th>
+              <th>CUF (%)</th>
+            </tr>
+          </thead>
+          <tbody id="currentDateTableBody"></tbody>
+        </table>
+
+        <div class="note">
+          * Data is without considering radiation correction &nbsp;&nbsp; ^ Data
+          is with radiation correction
+        </div>
+      </div>
+
+      <div class="section-header">Generation Data for Last 7 Days</div>
+
+      <div class="table-responsive mt-3">
+        <table class="table table-bordered" id="last7DaysTable">
+          <thead>
+            <tr>
+              <th rowspan="2">Date</th>
+              <th colspan="4">Current Year</th>
+              <th colspan="4">Previous Year</th>
+            </tr>
+            <tr>
+              <th>Radiation POA</th>
+              <th>Exported (kWh)</th>
+              <th>CUF (%)</th>
+              <th>Peak Power</th>
+              <th>Radiation POA</th>
+              <th>Exported (kWh)</th>
+              <th>CUF (%)</th>
+              <th>Peak Power</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const dept_id = params.get("dept_id");
+      const statistic_id = params.get("statistic_id");
+      const entity_id = params.get("entity_id");
+
+      function authFetch(url, options = {}) {
+        const token = localStorage.getItem("token");
+        const defaultHeaders = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...defaultHeaders,
+            ...(options.headers || {}),
+          },
+        }).then((res) => {
+          if (res.status === 401) {
+            alert("Session expired. Redirecting to login...");
+            localStorage.clear();
+            window.location.href = "/";
+            throw new Error("Unauthorized");
+          }
+          return res;
+        });
+      }
+
+      document
+        .getElementById("excelUpload")
+        .addEventListener("change", async function (e) {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          // ✅ Validate extension
+          if (!file.name.match(/\.(xlsx|xls)$/i)) {
+            alert("Please upload a valid Excel file (.xls or .xlsx)");
+            e.target.value = "";
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append("excelFile", file); // 🔥 must match multer field name
+
+          try {
+            const res = await fileAuthFetch(
+              `api/data/om/solar/bess/upload?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
+              {
+                method: "POST",
+                body: formData,
+              }
+            );
+            const { message, summary } = await res.json();
+
+            if (!res.ok) {
+              throw new Error(json.message || "Excel upload failed");
+            }
+
+            let alertMsg = `✅ ${message}\n\n`;
+
+            if (summary) {
+              alertMsg +=
+                `📊 Upload Summary:\n` +
+                `• Total Rows: ${summary.totalRows}\n` +
+                `• Inserted: ${summary.inserted}\n` +
+                `• Skipped: ${summary.skipped}`;
+            }
+
+            alert(alertMsg);
+
+            const selectedDate = document.getElementById("dateFilter").value;
+            if (selectedDate) {
+              fetchDataForDate(selectedDate);
+            }
+          } catch (err) {
+            console.error("Excel upload error:", err);
+            alert(err.message || "Failed to upload Excel file");
+          } finally {
+            e.target.value = "";
+          }
+        });
+
+      const dateInput = document.getElementById("dateFilter");
+      const currentDateTbody = document.getElementById("currentDateTableBody");
+      const last7DaysTbody = document.querySelector("#last7DaysTable tbody");
+
+      dateInput.addEventListener("change", () => {
+        if (!dateInput.value) return;
+        fetchDataForDate(dateInput.value);
+      });
+
+      function authFetch(url, options = {}) {
+        const token = localStorage.getItem("token");
+        const defaultHeaders = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        };
+
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...defaultHeaders,
+            ...(options.headers || {}),
+          },
+        }).then((res) => {
+          if (res.status === 401) {
+            alert("Session expired. Redirecting to login...");
+            localStorage.clear();
+            window.location.href = "/";
+            throw new Error("Unauthorized");
+          }
+          return res;
+        });
+      }
+
+      async function fetchDataForDate(selectedDate) {
+        try {
+          const res = await authFetch(
+            `/api/data/om/solar/date/one?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
+            {
+              method: "POST",
+              body: JSON.stringify({ requestedDate: selectedDate }),
+            }
+          );
+
+          const json = await res.json();
+          const data = json.data;
+
+          bindCurrentDateTable(data.currentDate);
+          bindLast7DaysTable(data.last7Days, data.lastYearLast7Days);
+        } catch (err) {
+          console.error("API Error:", err);
+        }
+      }
+
+      /* ===============================
+     SECI 10MW Badi Sid (Top Table)
+     =============================== */
+      function bindCurrentDateTable(d) {
+        if (!d) {
+          currentDateTbody.innerHTML =
+            "<tr><td colspan='7'>No data found</td></tr>";
+          return;
+        }
+
+        currentDateTbody.innerHTML = `
       <tr>
-        <td>Project B</td>
-        <td colspan="3">No data available</td>
+        <td>${d.radiation?.toFixed(2) ?? "-"}</td>
+        <td>${(d.generation / 1000).toFixed(5)}</td>
+        <td>${d.cuf?.toFixed(2)}%</td>
+        <td>${(d.cumulative_generation / 1000).toFixed(5)}</td>
+        <td>${d.cuf_till_date?.toFixed(2)}%</td>
+        <td>—</td>
+        <td>—</td>
       </tr>
-    </table>
+    `;
+      }
+
+      /* =========================================
+     Generation Data – Last 7 Days (Both Years)
+     ========================================= */
+      function bindLast7DaysTable(currentYear = [], previousYear = []) {
+        last7DaysTbody.innerHTML = "";
+
+        // Helper → key by DD-MM
+        const dayMonthKey = (date) => {
+          const d = new Date(date);
+          return `${String(d.getDate()).padStart(2, "0")}-${String(
+            d.getMonth() + 1
+          ).padStart(2, "0")}`;
+        };
+
+        // Maps
+        const currentMap = {};
+        currentYear.forEach((d) => {
+          currentMap[dayMonthKey(d.date)] = d;
+        });
+
+        const previousMap = {};
+        previousYear.forEach((d) => {
+          previousMap[dayMonthKey(d.date)] = d;
+        });
+
+        // Union of all day-month keys
+        const allKeys = new Set([
+          ...Object.keys(currentMap),
+          ...Object.keys(previousMap),
+        ]);
+
+        // Sort by day-month DESC (latest first)
+        const sortedKeys = Array.from(allKeys).sort((a, b) => {
+          const [d1, m1] = a.split("-").map(Number);
+          const [d2, m2] = b.split("-").map(Number);
+          return m2 !== m1 ? m2 - m1 : d2 - d1;
+        });
+
+        if (sortedKeys.length === 0) {
+          last7DaysTbody.innerHTML =
+            "<tr><td colspan='9'>No data found</td></tr>";
+          return;
+        }
+
+        // Render rows
+        sortedKeys.forEach((key) => {
+          const cur = currentMap[key];
+          const prev = previousMap[key];
+
+          last7DaysTbody.innerHTML += `
+      <tr>
+        <td>${formatDate(cur?.date || prev?.date)}</td>
+
+        <!-- Current Year -->
+        <td>${cur?.radiation ?? ""}</td>
+        <td>${cur?.generation ?? ""}</td>
+        <td>${cur ? cur.cuf.toFixed(2) : ""}%</td>
+        <td>${cur?.peak_power ?? ""}</td>
+
+        <!-- Previous Year -->
+        <td>${prev?.radiation ?? ""}</td>
+        <td>${prev?.generation ?? ""}</td>
+        <td>${prev ? prev.cuf.toFixed(2) : ""}%</td>
+        <td>${prev?.peak_power ?? ""}</td>
+      </tr>
+    `;
+        });
+      }
+
+      function formatDate(dateStr) {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+        });
+      }
+
+      function fileAuthFetch(url, options = {}) {
+        const token = localStorage.getItem("token");
+        const defaultHeaders = {
+          Authorization: `Bearer ${token}`,
+        };
+
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...defaultHeaders,
+            ...(options.headers || {}),
+          },
+        }).then((res) => {
+          if (res.status === 401) {
+            alert("Session expired. Redirecting to login...");
+            localStorage.clear();
+            window.location.href = "/";
+            throw new Error("Unauthorized");
+          }
+          return res;
+        });
+      }
+    </script>
   </body>
 </html>

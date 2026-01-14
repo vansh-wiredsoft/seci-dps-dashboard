@@ -15,9 +15,10 @@ const {
   REIADocuments,
   OMProjectTypeMapping,
   OMDGRSolarBESS,
+  OMDGRSolar,
 } = require("../models").models;
 
-const { Op } = require("sequelize");
+const { Sequelize, Op } = require("sequelize");
 
 exports.getMilestonesByBusinessDevelopmentEntry = async (req, res) => {
   try {
@@ -1799,6 +1800,7 @@ exports.getOMSolarBESSDataForDate = async (req, res) => {
   try {
     const { dept_id, statistic_id, entity_id } = req.query;
     const { requestedDate } = req.body;
+
     const foundDataForParticularDate = await OMDGRSolarBESS.findOne({
       where: {
         dept_id: dept_id,
@@ -1848,24 +1850,49 @@ exports.updateOMDGRSolarBESSForOneDate = async (req, res) => {
       daily_cuf_worc,
       cuf_till_date,
       is_active,
+      action,
     } = req.body;
+
+    console.log("req.body", req.body);
+
+    if (!action || !["add", "update"].includes(action)) {
+      return res.status(400).json({
+        message: "Invalid or missing action flag (add / update required)",
+      });
+    }
 
     // ✅ Normalize date (VERY IMPORTANT)
     const normalizedDate = new Date(date);
     normalizedDate.setHours(0, 0, 0, 0);
+    const startOfDay = new Date(normalizedDate);
+    const endOfDay = new Date(normalizedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    console.log("normalizedDate", normalizedDate);
+
+    const existingRecord = await OMDGRSolarBESS.findOne({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        where: Sequelize.where(
+          Sequelize.fn("DATE", Sequelize.col("date")),
+          date
+        ),
+      },
+      logging: console.log,
+    });
+
+    console.log("existingRecord", existingRecord);
 
     try {
-      const foundDataForThisDate = await OMDGRSolarBESS.findOne({
-        where: {
-          dept_id,
-          statistic_id,
-          entity_id,
-          date: normalizedDate,
-        },
-      });
+      if (action === "add") {
+        if (existingRecord) {
+          return res.status(409).json({
+            message: "Data already exists for this date. Use update instead.",
+          });
+        }
 
-      if (!foundDataForThisDate) {
-        // 🆕 CREATE
         await OMDGRSolarBESS.create({
           dept_id,
           statistic_id,
@@ -1889,11 +1916,18 @@ exports.updateOMDGRSolarBESSForOneDate = async (req, res) => {
         });
 
         return res.status(201).json({
-          message: "Data created successfully",
+          message: "Data added successfully",
         });
-      } else {
-        // 🔄 UPDATE
-        await foundDataForThisDate.update({
+      }
+
+      if (action === "update") {
+        if (!existingRecord) {
+          return res.status(404).json({
+            message: "No data found for this date to update",
+          });
+        }
+
+        await existingRecord.update({
           days,
           generation,
           radiation,
@@ -1915,6 +1949,66 @@ exports.updateOMDGRSolarBESSForOneDate = async (req, res) => {
           message: "Data updated successfully",
         });
       }
+      // const foundDataForThisDate = await OMDGRSolarBESS.findOne({
+      //   where: {
+      //     dept_id,
+      //     statistic_id,
+      //     entity_id,
+      //     date: normalizedDate,
+      //   },
+      // });
+
+      // if (!foundDataForThisDate) {
+      //   // 🆕 CREATE
+      //   await OMDGRSolarBESS.create({
+      //     dept_id,
+      //     statistic_id,
+      //     entity_id,
+      //     date: normalizedDate,
+      //     days,
+      //     generation,
+      //     radiation,
+      //     bess_export,
+      //     bess_import,
+      //     plant_availability,
+      //     bess_availability,
+      //     grid_availability,
+      //     peak_power,
+      //     cumulative_generation,
+      //     cumulative_bess_export,
+      //     cumulative_bess_import,
+      //     daily_cuf_worc,
+      //     cuf_till_date,
+      //     is_active,
+      //   });
+
+      //   return res.status(201).json({
+      //     message: "Data created successfully",
+      //   });
+      // } else {
+      //   // 🔄 UPDATE
+      //   await foundDataForThisDate.update({
+      //     days,
+      //     generation,
+      //     radiation,
+      //     bess_export,
+      //     bess_import,
+      //     plant_availability,
+      //     bess_availability,
+      //     grid_availability,
+      //     peak_power,
+      //     cumulative_generation,
+      //     cumulative_bess_export,
+      //     cumulative_bess_import,
+      //     daily_cuf_worc,
+      //     cuf_till_date,
+      //     is_active,
+      //   });
+
+      //   return res.status(200).json({
+      //     message: "Data updated successfully",
+      //   });
+      // }
     } catch (error) {
       console.error("OM DGR Solar BESS error:", error);
 
@@ -1928,6 +2022,330 @@ exports.updateOMDGRSolarBESSForOneDate = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+exports.getOMDGRSolarBESSSummary = async (req, res) => {
+  try {
+    const summary = await OMDGRSolarBESS.findOne({
+      attributes: [
+        [
+          Sequelize.fn("SUM", Sequelize.col("cumulative_generation")),
+          "cumulative_generation",
+        ],
+        [
+          Sequelize.fn("SUM", Sequelize.col("cumulative_bess_export")),
+          "cumulative_bess_export",
+        ],
+        [
+          Sequelize.fn("SUM", Sequelize.col("cumulative_bess_import")),
+          "cumulative_bess_import",
+        ],
+      ],
+      raw: true,
+    });
+
+    return res.status(200).json({
+      message: "Latest OM DGR Solar BESS record fetched successfully",
+      data: summary,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+// exports.updateOMDGRSolarForOneDate = async (req, res) => {
+//   try {
+//     const { dept_id, statistic_id, entity_id } = req.query;
+//     console.log("req.body", req.body);
+
+//     const {
+//       date,
+//       days,
+//       generation,
+//       radiation,
+//       machine_availability,
+//       grid_availability,
+//       peak_power,
+//       cumulative_generation,
+//       cuf,
+//       cuf_till_date,
+//       is_active,
+//       action,
+//     } = req.body;
+
+//     console.log("req.query:", req.query);
+
+//     if (!action || !["add", "update"].includes(action)) {
+//       return res.status(400).json({
+//         message: "Invalid or missing action flag (add / update required)",
+//       });
+//     }
+
+//     const normalizedDate = new Date(date);
+//     normalizedDate.setHours(0, 0, 0, 0);
+//     const startOfDay = new Date(normalizedDate);
+//     startOfDay.setHours(0, 0, 0, 0);
+
+//     const endOfDay = new Date(normalizedDate);
+//     endOfDay.setHours(23, 59, 59, 999);
+
+//     const existingRecord = await OMDGRSolar.findOne({
+//       where: {
+//         dept_id,
+//         statistic_id,
+//         entity_id,
+//         [Sequelize.Op.and]: Sequelize.literal(`DATE(date) = '${date}'`),
+//       },
+//     });
+
+//     if (action === "add") {
+//       if (existingRecord) {
+//         return res.status(409).json({
+//           message: "Data already exists for this date. Use update instead.",
+//         });
+//       }
+
+//       await OMDGRSolar.create({
+//         dept_id,
+//         statistic_id,
+//         entity_id,
+//         date: normalizedDate,
+//         days,
+//         generation,
+//         radiation,
+//         machine_availability,
+//         grid_availability,
+//         peak_power,
+//         cumulative_generation,
+//         cuf,
+//         cuf_till_date,
+//         is_active,
+//       });
+
+//       return res.status(201).json({
+//         message: "OM DGR Solar data added successfully",
+//       });
+//     }
+
+//     if (action === "update") {
+//       if (!existingRecord) {
+//         return res.status(404).json({
+//           message: "No data found for this date to update",
+//         });
+//       }
+
+//       await existingRecord.update({
+//         days,
+//         generation,
+//         radiation,
+//         machine_availability,
+//         grid_availability,
+//         peak_power,
+//         cumulative_generation,
+//         cuf,
+//         cuf_till_date,
+//         is_active,
+//       });
+
+//       return res.status(200).json({
+//         message: "OM DGR Solar data updated successfully",
+//       });
+//     }
+//   } catch (error) {
+//     console.error("OM DGR Solar error:", error);
+//     return res.status(500).json({
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+exports.getOMSolarDataForDate = async (req, res) => {
+  try {
+    const { dept_id, statistic_id, entity_id } = req.query;
+    const { requestedDate } = req.body;
+
+    if (!requestedDate) {
+      return res.status(400).json({
+        message: "requestedDate is required",
+      });
+    }
+
+    const shiftDate = (dateStr, days) => {
+      const d = new Date(dateStr + "T00:00:00");
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+
+    const last7DaysStart = shiftDate(requestedDate, -6);
+    const last7DaysEnd = shiftDate(requestedDate, 0);
+    const lastYearSameDate = shiftDate(requestedDate, -365);
+    const lastYear7DaysStart = shiftDate(lastYearSameDate, -5);
+
+    console.log("last7DaysStart", last7DaysStart);
+    console.log("lastYearSameDate", lastYearSameDate);
+    console.log("lastYear7DaysStart", lastYear7DaysStart);
+
+    const foundDataForParticularDate = await OMDGRSolar.findOne({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: requestedDate,
+      },
+    });
+
+    console.log("foundDataForParticularDate", foundDataForParticularDate);
+
+    if (!foundDataForParticularDate) {
+      return res.status(204).json({
+        message: "Data not found for this date",
+      });
+    }
+
+    // 🔹 Last 7 days data (current year)
+    const last7DaysData = await OMDGRSolar.findAll({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: {
+          [Sequelize.Op.between]: [last7DaysStart, last7DaysEnd],
+        },
+      },
+      order: [["date", "ASC"]],
+    });
+
+    // 🔹 Last year – same 7-day range
+    const lastYear7DaysData = await OMDGRSolar.findAll({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: {
+          [Sequelize.Op.between]: [lastYear7DaysStart, lastYearSameDate],
+        },
+      },
+      order: [["date", "ASC"]],
+    });
+
+    return res.status(200).json({
+      message: "Found data for date",
+      data: {
+        currentDate: foundDataForParticularDate,
+        last7Days: last7DaysData,
+        lastYearLast7Days: lastYear7DaysData,
+      },
+    });
+  } catch (error) {
+    console.error("Fetch OM Solar by date error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+exports.updateOMDGRSolarForOneDate = async (req, res) => {
+  try {
+    const { dept_id, statistic_id, entity_id } = req.query;
+
+    const {
+      date,
+      days,
+      generation,
+      radiation,
+      machine_availability,
+      grid_availability,
+      peak_power,
+      cumulative_generation,
+      cuf,
+      cuf_till_date,
+      is_active,
+      action,
+    } = req.body;
+
+    if (!action || !["add", "update"].includes(action)) {
+      return res.status(400).json({
+        message: "Invalid or missing action flag (add / update required)",
+      });
+    }
+
+    const normalizedDate = date;
+
+    const existingRecord = await OMDGRSolar.findOne({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: normalizedDate,
+      },
+    });
+
+    if (action === "add") {
+      if (existingRecord) {
+        return res.status(409).json({
+          message: "Data already exists for this date. Use update instead.",
+        });
+      }
+
+      await OMDGRSolar.create({
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: normalizedDate,
+        days,
+        generation,
+        radiation,
+        machine_availability,
+        grid_availability,
+        peak_power,
+        cumulative_generation,
+        cuf,
+        cuf_till_date,
+        is_active,
+      });
+
+      return res.status(201).json({
+        message: "OM DGR Solar data added successfully",
+      });
+    }
+
+    if (action === "update") {
+      if (!existingRecord) {
+        return res.status(404).json({
+          message: "No data found for this date to update",
+        });
+      }
+
+      await existingRecord.update({
+        days,
+        generation,
+        radiation,
+        machine_availability,
+        grid_availability,
+        peak_power,
+        cumulative_generation,
+        cuf,
+        cuf_till_date,
+        is_active,
+      });
+
+      return res.status(200).json({
+        message: "OM DGR Solar data updated successfully",
+      });
+    }
+  } catch (error) {
+    console.error("OM DGR Solar error:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
