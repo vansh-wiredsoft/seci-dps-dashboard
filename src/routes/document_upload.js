@@ -297,6 +297,46 @@ const upsertOMSolarBESSData = async (req, res) => {
   }
 };
 
+const validateRowTypes = (row) => {
+  const errors = [];
+
+  const numericFields = [
+    "days",
+    "generation",
+    "radiation",
+    "machine_availability",
+    "grid_availability",
+    "peak_power",
+    "cumulative_generation",
+    "cuf",
+    "cuf_till_date",
+  ];
+
+  // date validation
+  if (!row.date || typeof row.date !== "string") {
+    errors.push({
+      field: "date",
+      value: row.date,
+      type: typeof row.date,
+      expected: "DD/MM/YYYY (string)",
+    });
+  }
+
+  // numeric fields validation
+  for (const field of numericFields) {
+    if (!isNumber(row[field])) {
+      errors.push({
+        field,
+        value: row[field],
+        type: typeof row[field],
+        expected: "number",
+      });
+    }
+  }
+
+  return errors;
+};
+
 const uploadOMSolarFromExcel = async (req, res) => {
   try {
     console.log("Solar, Upload from excel called");
@@ -314,13 +354,6 @@ const uploadOMSolarFromExcel = async (req, res) => {
         message: "Excel file is required",
       });
     }
-
-    /* ---------- Helpers ---------- */
-    const normalizeDate = (dateStr) => {
-      // expects DD/MM/YYYY
-      const [dd, mm, yyyy] = dateStr.split("/");
-      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
-    };
 
     /* ---------- Read Excel ---------- */
     const workbook = XLSX.readFile(req.file.path);
@@ -341,6 +374,16 @@ const uploadOMSolarFromExcel = async (req, res) => {
     /* ---------- Process Rows ---------- */
     for (const row of rows) {
       try {
+        const typeErrors = validateRowTypes(row);
+
+        if (typeErrors.length) {
+          console.error("❌ Datatype mismatch found:");
+          console.table(typeErrors);
+          console.error("Row data:", row);
+          skipped++;
+          continue;
+        }
+
         const normalizedDate = normalizeDate(row.date);
 
         // Check if record already exists for SAME entity + date
@@ -402,6 +445,7 @@ const uploadOMSolarFromExcel = async (req, res) => {
 
 const express = require("express");
 const { json } = require("sequelize");
+const { isNumber, normalizeDate } = require("../utils/helper");
 const router = express.Router();
 router.post("/", verifyToken, upload.single("doc_file"), addDocument);
 

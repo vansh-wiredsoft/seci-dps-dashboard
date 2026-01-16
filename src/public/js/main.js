@@ -60,3 +60,27 @@ function getSortValue(td) {
     .trim()
     .toLowerCase();
 }
+
+// Global loader
+const GlobalLoader = (function () {
+  const loader = document.getElementById("globalLoader");
+  let requestCount = 0;
+
+  function show() {
+    requestCount++;
+    loader.classList.remove("d-none");
+  }
+
+  function hide() {
+    requestCount--;
+    if (requestCount <= 0) {
+      requestCount = 0;
+      loader.classList.add("d-none");
+    }
+  }
+
+  return {
+    show,
+    hide,
+  };
+})();
