@@ -8,6 +8,7 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="css/style.css" />
     <style>
       .tab-content {
         margin-top: 20px;
@@ -33,6 +34,7 @@
     <ul class="nav nav-tabs" id="dynamicTabs" role="tablist"></ul>
     <div class="tab-content" id="dynamicTabContent"></div>
 
+    <script src="./js/main.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         const params = new URLSearchParams(window.location.search);
@@ -180,74 +182,9 @@
             // Add the data table
             const table = buildDocumentTable(items, type.id);
             table.className = "table table-bordered";
-            table.id = "sortable-table-1";
             pane.appendChild(table);
             tabContent.appendChild(pane);
           });
-        }
-
-        function sortTable(n) {
-          alert("sorting...");
-          var table,
-            rows,
-            switching,
-            i,
-            x,
-            y,
-            shouldSwitch,
-            dir,
-            switchcount = 0;
-          table = document.getElementById("sortable-table-1");
-          switching = true;
-          // Set the sorting direction to ascending:
-          dir = "asc";
-          /* Make a loop that will continue until
-  no switching has been done: */
-          while (switching) {
-            // Start by saying: no switching is done:
-            switching = false;
-            rows = table.rows;
-            /* Loop through all table rows (except the
-    first, which contains table headers): */
-            for (i = 1; i < rows.length - 1; i++) {
-              // Start by saying there should be no switching:
-              shouldSwitch = false;
-              /* Get the two elements you want to compare,
-      one from current row and one from the next: */
-              x = rows[i].getElementsByTagName("TD")[n];
-              y = rows[i + 1].getElementsByTagName("TD")[n];
-              /* Check if the two rows should switch place,
-      based on the direction, asc or desc: */
-              if (dir == "asc") {
-                if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
-                  // If so, mark as a switch and break the loop:
-                  shouldSwitch = true;
-                  break;
-                }
-              } else if (dir == "desc") {
-                if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
-                  // If so, mark as a switch and break the loop:
-                  shouldSwitch = true;
-                  break;
-                }
-              }
-            }
-            if (shouldSwitch) {
-              /* If a switch has been marked, make the switch
-              and mark that a switch has been done: */
-              rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-              switching = true;
-              // Each time a switch is done, increase this count by 1:
-              switchcount++;
-            } else {
-              /* If no switching has been done AND the direction is "asc",
-                set the direction to "desc" and run the while loop again. */
-              if (switchcount == 0 && dir == "asc") {
-                dir = "desc";
-                switching = true;
-              }
-            }
-          }
         }
 
         function buildDocumentTable(items, type) {
@@ -260,35 +197,37 @@
           if (type === "is") {
             columns = `
             <tr>
-              <th onclick="sortTable(event)">S. No.</th>
-              <th onclick="sortTable(event)">Issue Description</th>
-              <th onclick="sortTable(event)">Issue Pertaining To</th>
-              <th>Issue Date</th>
+              <th class="sortable">S. No.</th>
+              <th class="sortable">Issue Description</th>
+              <th class="sortable">Issue Pertaining To</th>
+              <th class="sortable">Issue Date</th>
               <th>View Issue Document</th>
-              <th>Uploaded On</th>
+              <th class="sortable">Uploaded On</th>
+              <th>action</th>
             </tr>`;
           } else if (["dpr", "mpr", "cdoc", "tp"].includes(type)) {
             columns = `
               <tr>
-                <th onclick="sortTable(0)">S. No.</th>
-                <th>Document Name </th>
-                <th >Dated</th>
-                <th>View Document</th>
-                <th>Uploaded On</th>
-                <th></th>
+              <th class="sortable">S. No.</th>
+              <th class="sortable">Document Name</th>
+              <th class="sortable">Dated</th>
+              <th>View Document</th>
+              <th class="sortable">Uploaded On</th>
+              <th></th>
               </tr>`;
           } else {
             columns = `
               <tr>
-                <th>S. No.</th>
-                <th>Subject</th>
-                <th>Dated</th>
-                <th>From</th>
-                <th>To</th>
-                <th>Uploaded On</th>
-                <th>View</th>
-                <th></th>
-              </tr>`;
+  <th class="sortable">S. No.</th>
+  <th class="sortable">Subject</th>
+  <th class="sortable">Dated</th>
+  <th class="sortable">From</th>
+  <th class="sortable">To</th>
+  <th class="sortable">Uploaded On</th>
+  <th>View</th>
+  <th></th>
+</tr>
+            `;
           }
 
           thead.innerHTML = columns;
@@ -302,41 +241,49 @@
               <td>${index}</td>
               <td>${item.issue_description}</td>
               <td>${item.issue_pertaining_to}</td>
-              <td>${formatToISTDate(item.issue_date)}</td>
-              <td>
+<td data-sort-value="${item.issue_date}">
+  ${formatToISTDate(item.issue_date)}
+</td>              <td>
                 ${
                   item.issue_doc_path
                     ? `<a href="${item.issue_doc_path}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>`
                     : `<button class="btn btn-sm btn-secondary" disabled>No Document</button>`
                 }
               </td>
-              <td>${formatToISTDate(item.createdAt)}</td>
-              <td><button class="btn btn-danger btn-sm" data-is-id="${
+<td data-sort-value="${item.createdAt}">
+  ${formatToISTDate(item.createdAt)}
+</td>              <td><button class="btn btn-danger btn-sm" data-is-id="${
                 item.issue_id
               }" onclick="deleteIssue(event)">Delete</button></td>`;
             } else if (["dpr", "mpr", "cdoc", "tp"].includes(type)) {
               tr.innerHTML = `
               <td>${index}</td>
               <td>${item.doc_name}</td>
-              <td>${formatToISTDate(item.doc_date)}</td>
+              <td data-sort-value="${item.doc_date}">
+  ${formatToISTDate(item.doc_date)}
+</td>
+
               <td><a href="${
                 item.doc_path
               }" target="_blank" class="btn btn-sm btn-outline-primary">View</a></td>
-              <td>${formatToISTDate(item.createdAt)}</td>
-              <td><button class="btn btn-danger btn-sm" data-doc-id="${
+<td data-sort-value="${item.createdAt}">
+  ${formatToISTDate(item.createdAt)}
+</td>              <td><button class="btn btn-danger btn-sm" data-doc-id="${
                 item.doc_id
               }" onclick="deleteDocument(event)">Delete</button></td>`;
             } else {
               tr.innerHTML = `
         <td>${index}</td>
         <td>${item.subject || ""}</td>
-        <td>${formatToISTDate(item.correspondence_date)}</td>
-        <td>${item.from || ""}</td>
+<td data-sort-value="${item.correspondence_date}">
+  ${formatToISTDate(item.correspondence_date)}
+</td>        <td>${item.from || ""}</td>
         <td>${item.to || ""}</td>
-        <td>${formatToISTDate(item.createdAt)}</td>
-        <td><a href="${
-          item.doc_path
-        }" target="_blank" class="btn btn-sm btn-outline-primary">View</a></td>
+<td data-sort-value="${item.createdAt}">
+  ${formatToISTDate(item.createdAt)}
+</td>        <td><a href="${
+                item.doc_path
+              }" target="_blank" class="btn btn-sm btn-outline-primary">View</a></td>
         <td><button class="btn btn-danger btn-sm" data-corr-id="${
           item.correspondence_id
         }" onclick="deleteCorrespondence(event)">Delete</button></td>`;
@@ -351,51 +298,6 @@
           return table;
         }
       });
-
-      function sortTable(event) {
-        const th = event.target;
-        const table = th.closest("table");
-        const tbody = table.querySelector("tbody");
-        const columnIndex = Array.from(th.parentNode.children).indexOf(th);
-        const rows = Array.from(tbody.querySelectorAll("tr"));
-
-        const currentSort = th.getAttribute("data-sort");
-        const ascending = currentSort !== "asc";
-
-        // Reset sort direction for all headers
-        th.parentNode.querySelectorAll("th").forEach((header) => {
-          header.removeAttribute("data-sort");
-        });
-        th.setAttribute("data-sort", ascending ? "asc" : "desc");
-
-        rows.sort((a, b) => {
-          const cellA = a.children[columnIndex].innerText.trim();
-          const cellB = b.children[columnIndex].innerText.trim();
-
-          const valA = parseValue(cellA);
-          const valB = parseValue(cellB);
-
-          if (valA < valB) return ascending ? -1 : 1;
-          if (valA > valB) return ascending ? 1 : -1;
-          return 0;
-        });
-
-        // Re-append sorted rows
-        rows.forEach((row) => tbody.appendChild(row));
-      }
-
-      function parseValue(value) {
-        // Try parsing date
-        const date = Date.parse(value);
-        if (!isNaN(date)) return date;
-
-        // Try parsing number
-        const number = parseFloat(value.replace(/,/g, ""));
-        if (!isNaN(number)) return number;
-
-        // Fallback to string
-        return value.toLowerCase();
-      }
 
       function authFetch(url, options = {}) {
         const token = localStorage.getItem("token");
@@ -496,7 +398,7 @@
       }
     </script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/0.8.0/Sortable.min.js"></script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/0.8.0/Sortable.min.js"></script> -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>

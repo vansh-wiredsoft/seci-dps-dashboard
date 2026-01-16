@@ -69,6 +69,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         default: 0.0,
       },
+      remarks: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
       is_active: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

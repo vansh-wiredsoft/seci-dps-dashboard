@@ -64,6 +64,7 @@
         flex-wrap: wrap;
       }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
 
   <body>
@@ -88,7 +89,7 @@
             class="btn btn-success btn-sm"
             onclick="this.href = 'add_om_solar.html' + window.location.search"
           >
-            Add Data
+            Add / Edit Data
           </a>
           <button
             class="btn btn-secondary btn-sm"
@@ -152,6 +153,15 @@
           <tbody></tbody>
         </table>
       </div>
+      <div class="section-header mt-4">
+        Daily Generation for Last 7 Days & CUF
+      </div>
+
+      <div class="card mt-3 shadow-sm">
+        <div class="card-body">
+          <canvas id="dailyGenerationChart" height="120"></canvas>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -159,6 +169,7 @@
       const dept_id = params.get("dept_id");
       const statistic_id = params.get("statistic_id");
       const entity_id = params.get("entity_id");
+      let dailyGenerationChart = null;
 
       function authFetch(url, options = {}) {
         const token = localStorage.getItem("token");
@@ -284,17 +295,18 @@
           const json = await res.json();
           const data = json.data;
 
-          bindCurrentDateTable(data.currentDate);
+          bindCurrentDateTable(data.currentDate, data.lastYearMarch31);
           bindLast7DaysTable(data.last7Days, data.lastYearLast7Days);
+          bindDailyGenerationChart(data.last7Days);
         } catch (err) {
           console.error("API Error:", err);
         }
       }
 
       /* ===============================
-     SECI 10MW Badi Sid (Top Table)
-     =============================== */
-      function bindCurrentDateTable(d) {
+       SECI 10MW Badi Sid (Top Table)
+       =============================== */
+      function bindCurrentDateTable(d, d1) {
         if (!d) {
           currentDateTbody.innerHTML =
             "<tr><td colspan='7'>No data found</td></tr>";
@@ -302,21 +314,21 @@
         }
 
         currentDateTbody.innerHTML = `
-      <tr>
-        <td>${d.radiation?.toFixed(2) ?? "-"}</td>
-        <td>${(d.generation / 1000).toFixed(5)}</td>
-        <td>${d.cuf?.toFixed(2)}%</td>
-        <td>${(d.cumulative_generation / 1000).toFixed(5)}</td>
-        <td>${d.cuf_till_date?.toFixed(2)}%</td>
-        <td>—</td>
-        <td>—</td>
-      </tr>
-    `;
+        <tr>
+          <td>${d.radiation?.toFixed(2) ?? "-"}</td>
+          <td>${(d.generation / 1000).toFixed(5)}</td>
+          <td>${d.cuf?.toFixed(2)}%</td>
+          <td>${(d.generation_till_date / 1000).toFixed(5)}</td>
+          <td>${d.cuf_till_date?.toFixed(2)}%</td>
+          <td>${(d1.generation_till_date / 1000).toFixed(5)}</td>
+          <td>${d1.cuf_till_date?.toFixed(2)}%</td>
+        </tr>
+      `;
       }
 
       /* =========================================
-     Generation Data – Last 7 Days (Both Years)
-     ========================================= */
+       Generation Data – Last 7 Days (Both Years)
+       ========================================= */
       function bindLast7DaysTable(currentYear = [], previousYear = []) {
         last7DaysTbody.innerHTML = "";
 
@@ -364,22 +376,22 @@
           const prev = previousMap[key];
 
           last7DaysTbody.innerHTML += `
-      <tr>
-        <td>${formatDate(cur?.date || prev?.date)}</td>
+        <tr>
+          <td>${formatDate(cur?.date || prev?.date)}</td>
 
-        <!-- Current Year -->
-        <td>${cur?.radiation ?? ""}</td>
-        <td>${cur?.generation ?? ""}</td>
-        <td>${cur ? cur.cuf.toFixed(2) : ""}%</td>
-        <td>${cur?.peak_power ?? ""}</td>
+          <!-- Current Year -->
+          <td>${cur?.radiation ?? ""}</td>
+          <td>${cur?.generation ?? ""}</td>
+          <td>${cur ? cur.cuf.toFixed(2) : ""}%</td>
+          <td>${cur?.peak_power ?? ""}</td>
 
-        <!-- Previous Year -->
-        <td>${prev?.radiation ?? ""}</td>
-        <td>${prev?.generation ?? ""}</td>
-        <td>${prev ? prev.cuf.toFixed(2) : ""}%</td>
-        <td>${prev?.peak_power ?? ""}</td>
-      </tr>
-    `;
+          <!-- Previous Year -->
+          <td>${prev?.radiation ?? ""}</td>
+          <td>${prev?.generation ?? ""}</td>
+          <td>${prev ? prev.cuf.toFixed(2) : ""}%</td>
+          <td>${prev?.peak_power ?? ""}</td>
+        </tr>
+      `;
         });
       }
 
@@ -413,6 +425,101 @@
           return res;
         });
       }
+
+      function bindDailyGenerationChart(last7Days = []) {
+        if (!last7Days.length) return;
+
+        const labels = last7Days.map((d) =>
+          new Date(d.date).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+          })
+        );
+
+        const generationData = last7Days.map((d) => d.generation);
+        const cufData = last7Days.map((d) => d.cuf);
+
+        const ctx = document
+          .getElementById("dailyGenerationChart")
+          .getContext("2d");
+
+        // 🔁 Destroy previous chart (VERY IMPORTANT)
+        if (dailyGenerationChart) {
+          dailyGenerationChart.destroy();
+        }
+
+        dailyGenerationChart = new Chart(ctx, {
+          data: {
+            labels,
+            datasets: [
+              {
+                type: "bar",
+                label: "Generation (kWh)",
+                data: generationData,
+                yAxisID: "yGeneration",
+              },
+              {
+                type: "line",
+                label: "CUF (%)",
+                data: cufData,
+                yAxisID: "yCUF",
+                tension: 0.3,
+                pointRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: "top",
+              },
+              tooltip: {
+                mode: "index",
+                intersect: false,
+              },
+            },
+            scales: {
+              yGeneration: {
+                type: "linear",
+                position: "left",
+                title: {
+                  display: true,
+                  text: "Generation (kWh)",
+                },
+              },
+              yCUF: {
+                type: "linear",
+                position: "right",
+                title: {
+                  display: true,
+                  text: "CUF (%)",
+                },
+                grid: {
+                  drawOnChartArea: false,
+                },
+              },
+            },
+          },
+        });
+      }
+
+      window.addEventListener("DOMContentLoaded", () => {
+        // Set default date = today - 1
+        const today = new Date();
+        today.setDate(today.getDate() - 1);
+
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const dd = String(today.getDate()).padStart(2, "0");
+
+        const defaultDate = `${yyyy}-${mm}-${dd}`;
+
+        dateInput.value = defaultDate;
+
+        // Auto-fetch data for default date
+        fetchDataForDate(defaultDate);
+      });
     </script>
   </body>
 </html>

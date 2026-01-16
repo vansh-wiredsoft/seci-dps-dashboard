@@ -261,7 +261,7 @@
         <div class="form-group">
           <label for="days">Days (Auto-calculated)</label>
           <div class="input-with-unit">
-            <input type="number" id="days" name="days" />
+            <input type="number" id="days" name="days" readonly />
             <span class="unit">days</span>
           </div>
           <div class="error-message" id="days-error"></div>
@@ -315,11 +315,11 @@
               type="number"
               id="peak_power"
               name="peak_power"
-              step="0.01"
+              step="0.001"
               min="0"
               required
             />
-            <span class="unit">kW</span>
+            <span class="unit">mW</span>
           </div>
           <div class="error-message" id="peak-power-error">
             Please enter a valid peak power value
@@ -387,6 +387,7 @@
               step="0.01"
               min="0"
               required
+              readonly
             />
             <span class="unit">kWh</span>
           </div>
@@ -407,6 +408,7 @@
               min="0"
               max="100"
               required
+              readonly
             />
             <span class="unit">%</span>
           </div>
@@ -429,12 +431,33 @@
               min="0"
               max="100"
               required
+              readonly
             />
             <span class="unit">%</span>
           </div>
           <div class="error-message" id="cuf-till-date-error">
             Please enter a value between 0 and 100
           </div>
+        </div>
+
+        <div class="form-section">Remarks</div>
+        <!-- Remarks -->
+        <div class="form-group full-width">
+          <label for="remarks">Remarks</label>
+          <textarea
+            id="remarks"
+            name="remarks"
+            rows="3"
+            placeholder="Enter remarks"
+            style="
+              width: 100%;
+              padding: 12px;
+              font-size: 15px;
+              border: 1px solid #cfd4da;
+              border-radius: 6px;
+              resize: vertical;
+            "
+          ></textarea>
         </div>
 
         <!-- Buttons -->
@@ -462,27 +485,69 @@
     );
     const cufInput = document.getElementById("cuf");
     const cufTillDateInput = document.getElementById("cuf_till_date_woc");
+    const remarksInput = document.getElementById("remarks");
 
     const params = new URLSearchParams(window.location.search);
     const dept_id = params.get("dept_id");
     const statistic_id = params.get("statistic_id");
     const entity_id = params.get("entity_id");
 
-    const currentYear = new Date().getFullYear();
-    const today = new Date();
-    const fyStartYear =
-      today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
-    const startDate = new Date(`${fyStartYear}-04-01`);
-    const endDate = new Date(`${currentYear}-10-31`);
+    let capacity = 0;
+    let lastAddedRecord = {};
 
-    // dateInput.min = startDate.toISOString().split("T")[0];
-    // dateInput.max = endDate.toISOString().split("T")[0];
+    generationInput.addEventListener("input", function () {
+      const generation = parseFloat(generationInput.value) || 0;
+      const lastCumulative =
+        parseFloat(lastAddedRecord?.cumulative_generation) || 0;
+
+      cumulativeGenerationInput.value = (lastCumulative + generation).toFixed(
+        2
+      );
+      calculateCUF();
+    });
+
+    function calculateCUF() {
+      const generation = parseFloat(generationInput.value) || 0;
+      const cumulativeGeneration =
+        parseFloat(cumulativeGenerationInput.value) || 0;
+      const cap = parseFloat(capacity) || 0;
+      const days = parseInt(daysInput.value) || 0;
+
+      console.log("cap", cap);
+
+      // CUF (Daily)
+      if (generation && cap) {
+        const cuf = generation / (cap * 24);
+        cufInput.value = cuf.toFixed(4);
+      } else {
+        cufInput.value = "";
+      }
+
+      // CUF Till Date (W.o.C)
+      if (cumulativeGeneration && cap && days) {
+        const cufTillDate = cumulativeGeneration / (cap * days * 24);
+        cufTillDateInput.value = cufTillDate.toFixed(4);
+      } else {
+        cufTillDateInput.value = "";
+      }
+    }
+
+    function getFYStart(dateStr) {
+      const d = new Date(dateStr + "T00:00:00");
+      const year = d.getFullYear();
+      const month = d.getMonth(); // 0-based
+      const fyStartYear = month < 3 ? year - 1 : year;
+      return new Date(`${fyStartYear}-04-01T00:00:00`);
+    }
 
     function calculateDays(selectedDate) {
-      const selected = new Date(selectedDate);
-      const diffTime = selected - startDate;
+      const fyStart = getFYStart(selectedDate);
+      const selected = new Date(selectedDate + "T00:00:00");
+
+      const diffTime = selected - fyStart;
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      return diffDays > 0 ? diffDays : "";
+
+      return diffDays > 0 ? diffDays : 0;
     }
 
     async function fetchDataByDate(date) {
@@ -504,7 +569,11 @@
       if (!response.ok) {
         throw new Error(result.message || "Failed to fetch data");
       }
-      console.log("result", result.data.currentDate);
+
+      capacity = result?.data?.capacity;
+      lastAddedRecord =
+        result.data?.last7Days?.[result.data?.last7Days.length - 1];
+      console.log("lastAddedRecord", lastAddedRecord);
 
       return {
         exists: true,
@@ -521,38 +590,46 @@
       cumulativeGenerationInput.value = data.cumulative_generation ?? "";
       cufInput.value = data.cuf ?? "";
       cufTillDateInput.value = data.cuf_till_date ?? "";
-      daysInput.value = data.days ?? "";
+      // daysInput.value = data.days ?? "";
+      remarksInput.value = data.remarks ?? "";
     }
 
     function clearFormValues() {
       generationInput.value = "";
       radiationInput.value = "";
       peakPowerInput.value = "";
-      machineAvailabilityInput.value = "";
-      gridAvailabilityInput.value = "";
+      machineAvailabilityInput.value = 100;
+      gridAvailabilityInput.value = 100;
       cumulativeGenerationInput.value = "";
       cufInput.value = "";
       cufTillDateInput.value = "";
-      daysInput.value = "";
+      // daysInput.value = "";
+      remarksInput.value = "";
     }
 
     dateInput.addEventListener("change", async function () {
       const selectedDate = this.value;
       if (!selectedDate) return;
 
-      // daysInput.value = calculateDays(selectedDate);
+      daysInput.value = calculateDays(selectedDate);
+
       try {
         const response = await fetchDataByDate(selectedDate);
 
         if (response.exists) {
           setDefaultValues(response.data);
+          cumulativeGenerationInput.value =
+            response.data.cumulative_generation ?? "";
           actionInput.value = "update";
           console.log("Mode: UPDATE");
         } else {
           clearFormValues();
+          cumulativeGenerationInput.value = "";
           actionInput.value = "add";
           console.log("Mode: ADD");
         }
+
+        calculateCUF();
       } catch (error) {
         console.error("Date fetch error:", error);
         alert("Failed to fetch data for selected date");
@@ -601,7 +678,8 @@
         cumulative_generation: cumulativeGenerationInput.value,
         cuf: cufInput.value,
         cuf_till_date: cufTillDateInput.value,
-        action: actionInput.value, // 🔥 add / update
+        remarks: remarksInput.value,
+        action: actionInput.value,
       };
 
       console.log("Submitting Payload:", payload);
@@ -632,6 +710,25 @@
       } catch (error) {
         console.error("Network Error:", error);
         alert("Server error. Please try again.");
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      machineAvailabilityInput.value = 100;
+      gridAvailabilityInput.value = 100;
+      try {
+        let response = await authFetch(
+          `/api/data/om/project/capacity?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
+          {
+            method: "GET",
+          }
+        );
+
+        const result = await response.json();
+
+        capacity = result.data.capacity;
+      } catch (error) {
+        console.error("Capacity Fetching Failed:", error);
       }
     });
   </script>

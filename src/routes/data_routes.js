@@ -397,10 +397,16 @@ router.post(
 
 router.post(
   "/om/solar/date/one",
-  verifyToken,
+  // verifyToken,
   auditLogger("Fetched the OM Solar data for a specific date"),
   dataController.getOMSolarDataForDate
 );
 
+router.get(
+  "/om/project/capacity",
+  // verifyToken,
+  auditLogger("Get project capacity"),
+  dataController.getProjectCapacity
+);
 
 module.exports = router;

@@ -1,0 +1,15 @@
+/* table global css */
+th.sortable {
+  cursor: pointer;
+}
+th.sortable::after {
+  content: " ⇅";
+  font-size: 12px;
+  color: #888;
+}
+th.sortable[data-order="asc"]::after {
+  content: " ↑";
+}
+th.sortable[data-order="desc"]::after {
+  content: " ↓";
+}

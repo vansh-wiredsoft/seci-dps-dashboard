@@ -373,6 +373,7 @@ const uploadOMSolarFromExcel = async (req, res) => {
           cumulative_generation: row.cumulative_generation,
           cuf: row.cuf,
           cuf_till_date: row.cuf_till_date,
+          remarks: row.remarks || null,
           is_active: 1,
         });
 

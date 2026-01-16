@@ -2186,14 +2186,12 @@ exports.getOMSolarDataForDate = async (req, res) => {
       return d.toISOString().slice(0, 10);
     };
 
-    const last7DaysStart = shiftDate(requestedDate, -6);
+    const last7DaysStart = shiftDate(requestedDate, -7);
     const last7DaysEnd = shiftDate(requestedDate, 0);
-    const lastYearSameDate = shiftDate(requestedDate, -365);
-    const lastYear7DaysStart = shiftDate(lastYearSameDate, -5);
-
-    console.log("last7DaysStart", last7DaysStart);
-    console.log("lastYearSameDate", lastYearSameDate);
-    console.log("lastYear7DaysStart", lastYear7DaysStart);
+    const d = new Date(requestedDate + "T00:00:00");
+    d.setFullYear(d.getFullYear() - 1);
+    const lastYearSameDate = d.toISOString().slice(0, 10);
+    const lastYear7DaysStart = shiftDate(lastYearSameDate, -6);
 
     const foundDataForParticularDate = await OMDGRSolar.findOne({
       where: {
@@ -2203,8 +2201,6 @@ exports.getOMSolarDataForDate = async (req, res) => {
         date: requestedDate,
       },
     });
-
-    console.log("foundDataForParticularDate", foundDataForParticularDate);
 
     if (!foundDataForParticularDate) {
       return res.status(204).json({
@@ -2238,12 +2234,25 @@ exports.getOMSolarDataForDate = async (req, res) => {
       order: [["date", "ASC"]],
     });
 
+    const reqYear = new Date(requestedDate + "T00:00:00").getFullYear();
+    const lastYearMarch31 = `${reqYear - 1}-03-31`;
+
+    const lastYearMarch31Data = await OMDGRSolar.findOne({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: lastYearMarch31,
+      },
+    });
+
     return res.status(200).json({
       message: "Found data for date",
       data: {
         currentDate: foundDataForParticularDate,
         last7Days: last7DaysData,
         lastYearLast7Days: lastYear7DaysData,
+        lastYearMarch31: lastYearMarch31Data,
       },
     });
   } catch (error) {
@@ -2270,9 +2279,12 @@ exports.updateOMDGRSolarForOneDate = async (req, res) => {
       cumulative_generation,
       cuf,
       cuf_till_date,
+      remarks,
       is_active,
       action,
     } = req.body;
+
+    console.log("req.body", req.body);
 
     if (!action || !["add", "update"].includes(action)) {
       return res.status(400).json({
@@ -2312,6 +2324,7 @@ exports.updateOMDGRSolarForOneDate = async (req, res) => {
         cumulative_generation,
         cuf,
         cuf_till_date,
+        remarks,
         is_active,
       });
 
@@ -2337,6 +2350,7 @@ exports.updateOMDGRSolarForOneDate = async (req, res) => {
         cumulative_generation,
         cuf,
         cuf_till_date,
+        remarks,
         is_active,
       });
 
@@ -2346,6 +2360,35 @@ exports.updateOMDGRSolarForOneDate = async (req, res) => {
     }
   } catch (error) {
     console.error("OM DGR Solar error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+exports.getProjectCapacity = async (req, res) => {
+  try {
+    const { dept_id, statistic_id, entity_id } = req.query;
+
+    const entityCapacity = await DeptEntity.findOne({
+      attributes: ["entity_value"],
+      where: {
+        entity_id: entity_id,
+        dept_id: dept_id,
+        statistic_id: statistic_id,
+      },
+      raw: true,
+    });
+
+    return res.status(200).json({
+      message: "Found capacity for entity_id",
+      data: {
+        capacity: entityCapacity ? entityCapacity.entity_value : null,
+      },
+    });
+  } catch (error) {
+    console.error("Fetch OM Solar by date error:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
