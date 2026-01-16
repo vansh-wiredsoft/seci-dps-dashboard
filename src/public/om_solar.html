@@ -108,16 +108,18 @@
         <table class="table table-bordered">
           <thead>
             <tr>
-              <th colspan="3">As on Date</th>
-              <th colspan="2">Year Till Date</th>
+              <th colspan="4">As on Date</th>
+              <th colspan="3">Year Till Date</th>
               <th colspan="2">Last FY Performance</th>
             </tr>
             <tr>
               <th>GHI (kWh/sq.m)</th>
               <th>Exported Generation (MU)</th>
               <th>CUF (%)</th>
+              <th>Peak Power (MW)</th>
               <th>Exported Generation (MU)</th>
               <th>CUF (%)</th>
+              <th>Peak Power (MW)</th>
               <th>Exported Generation (MU)</th>
               <th>CUF (%)</th>
             </tr>
@@ -164,9 +166,6 @@
           <canvas id="dailyGenerationChart" height="120"></canvas>
         </div>
       </div>
-    </div>
-    <div id="globalLoader" class="global-loader d-none">
-      <div class="spinner"></div>
     </div>
 
     <script>
@@ -326,11 +325,13 @@
         currentDateTbody.innerHTML = `
         <tr>
           <td>${d.radiation?.toFixed(2) ?? "-"}</td>
-          <td>${(d.generation / 1000).toFixed(5)}</td>
+          <td>${(d.generation / 1000000).toFixed(6)}</td>
           <td>${d.cuf?.toFixed(2)}%</td>
-          <td>${(d.cumulative_generation / 1000).toFixed(5)}</td>
+          <td>${(d.peak_power / 1000)?.toFixed(3)}</td>
+          <td>${(d.cumulative_generation / 1000000).toFixed(6)}</td>
           <td>${d.cuf_till_date?.toFixed(2)}%</td>
-          <td>${(d1.cumulative_generation / 1000).toFixed(5)}</td>
+          <td>${(d.peak_power / 1000)?.toFixed(3)}</td>
+          <td>${(d1.cumulative_generation / 1000000).toFixed(6)}</td>
           <td>${d1.cuf_till_date?.toFixed(2)}%</td>
         </tr>
       `;

@@ -62,6 +62,19 @@ function getSortValue(td) {
 }
 
 // Global loader
+(function injectGlobalLoader() {
+  if (document.getElementById("globalLoader")) return;
+
+  const loader = document.createElement("div");
+  loader.id = "globalLoader";
+  loader.className = "global-loader d-none";
+  loader.setAttribute("aria-hidden", "true");
+
+  loader.innerHTML = `<div class="spinner"></div>`;
+
+  document.body.appendChild(loader);
+})();
+
 const GlobalLoader = (function () {
   const loader = document.getElementById("globalLoader");
   let requestCount = 0;

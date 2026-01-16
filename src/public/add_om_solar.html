@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <title>O&M Solar Data Entry</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="css/style.css" />
 
     <style>
       * {
@@ -517,7 +518,7 @@
 
       // CUF (Daily)
       if (generation && cap) {
-        const cuf = generation / (cap * 24);
+        const cuf = generation / (cap * 24 * 10);
         cufInput.value = cuf.toFixed(4);
       } else {
         cufInput.value = "";
@@ -525,7 +526,7 @@
 
       // CUF Till Date (W.o.C)
       if (cumulativeGeneration && cap && days) {
-        const cufTillDate = cumulativeGeneration / (cap * days * 24);
+        const cufTillDate = cumulativeGeneration / (cap * days * 24 * 10);
         cufTillDateInput.value = cufTillDate.toFixed(4);
       } else {
         cufTillDateInput.value = "";
@@ -550,6 +551,12 @@
       return diffDays > 0 ? diffDays : 0;
     }
 
+    function getPreviousDate(dateStr) {
+      const d = new Date(dateStr + "T00:00:00");
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().slice(0, 10);
+    }
+
     async function fetchDataByDate(date) {
       const url = `/api/data/om/solar/date/one?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`;
 
@@ -569,11 +576,6 @@
       if (!response.ok) {
         throw new Error(result.message || "Failed to fetch data");
       }
-
-      capacity = result?.data?.capacity;
-      lastAddedRecord =
-        result.data?.last7Days?.[result.data?.last7Days.length - 1];
-      console.log("lastAddedRecord", lastAddedRecord);
 
       return {
         exists: true,
@@ -612,29 +614,29 @@
       if (!selectedDate) return;
 
       daysInput.value = calculateDays(selectedDate);
+      const previousDate = getPreviousDate(selectedDate);
 
       try {
-        const response = await fetchDataByDate(selectedDate);
+        /* ---------- 1️⃣ Call API for SELECTED DATE ---------- */
+        const selectedDateResponse = await fetchDataByDate(selectedDate);
 
-        if (response.exists) {
-          setDefaultValues(response.data);
-          cumulativeGenerationInput.value =
-            response.data.cumulative_generation ?? "";
+        if (selectedDateResponse.exists) {
+          setDefaultValues(selectedDateResponse.data);
           actionInput.value = "update";
-          console.log("Mode: UPDATE");
+          console.log("Mode: UPDATE (selected date exists)");
         } else {
           clearFormValues();
-          cumulativeGenerationInput.value = "";
           actionInput.value = "add";
-          console.log("Mode: ADD");
+          console.log("Mode: ADD (selected date does not exist)");
         }
 
-        calculateCUF();
+        /* ---------- 2️⃣ Call API for PREVIOUS DATE ---------- */
+        const prevDateResponse = await fetchDataByDate(previousDate);
+        console.log("prevDateResponse", prevDateResponse.data);
+        lastAddedRecord = prevDateResponse.data;
       } catch (error) {
-        console.error("Date fetch error:", error);
+        console.error("Date change fetch error:", error);
         alert("Failed to fetch data for selected date");
-        clearFormValues();
-        actionInput.value = "add";
       }
     });
 
@@ -644,22 +646,26 @@
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       };
-
+      GlobalLoader.show();
       return fetch(url, {
         ...options,
         headers: {
           ...defaultHeaders,
           ...(options.headers || {}),
         },
-      }).then((res) => {
-        if (res.status === 401) {
-          alert("Session expired. Redirecting to login...");
-          localStorage.clear();
-          window.location.href = "/";
-          throw new Error("Unauthorized");
-        }
-        return res;
-      });
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            alert("Session expired. Redirecting to login...");
+            localStorage.clear();
+            window.location.href = "/";
+            throw new Error("Unauthorized");
+          }
+          return res;
+        })
+        .finally(() => {
+          GlobalLoader.hide();
+        });
     }
 
     const form = document.getElementById("solar-form");
@@ -732,4 +738,5 @@
       }
     });
   </script>
+  <script src="js/main.js"></script>
 </html>
