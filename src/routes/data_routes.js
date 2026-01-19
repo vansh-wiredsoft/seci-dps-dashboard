@@ -369,7 +369,7 @@ router.get(
 
 router.post(
   "/om/solar_bess/date/one",
-  verifyToken,
+  // verifyToken,
   auditLogger("Fetched the OM Solar+BESS data for a specific date"),
   dataController.getOMSolarBESSDataForDate
 );
@@ -381,23 +381,16 @@ router.post(
   dataController.updateOMDGRSolarBESSForOneDate
 );
 
-router.get(
-  "/om/solar_bess/data/summary",
-  verifyToken,
-  auditLogger("Get default values"),
-  dataController.getOMDGRSolarBESSSummary
-);
-
 router.post(
   "/om/solar/data/one/update",
-  // verifyToken,
+  verifyToken,
   auditLogger("Updated the OM Solar data for a specific date"),
   dataController.updateOMDGRSolarForOneDate
 );
 
 router.post(
   "/om/solar/date/one",
-  // verifyToken,
+  verifyToken,
   auditLogger("Fetched the OM Solar data for a specific date"),
   dataController.getOMSolarDataForDate
 );

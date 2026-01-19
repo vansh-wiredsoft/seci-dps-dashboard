@@ -1795,33 +1795,98 @@ exports.getOAllMSolarBESSData = async (req, res) => {
   }
 };
 
-// returns the data for a particular date, if it exists
 exports.getOMSolarBESSDataForDate = async (req, res) => {
   try {
     const { dept_id, statistic_id, entity_id } = req.query;
     const { requestedDate } = req.body;
 
+    if (!requestedDate) {
+      return res.status(400).json({
+        message: "requestedDate is required",
+      });
+    }
+
+    /* ---------- Date helpers ---------- */
+    const shiftDate = (dateStr, days) => {
+      const d = new Date(dateStr + "T00:00:00");
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+
+    const last7DaysStart = shiftDate(requestedDate, -7);
+    const last7DaysEnd = shiftDate(requestedDate, 0);
+
+    const d = new Date(requestedDate + "T00:00:00");
+    d.setFullYear(d.getFullYear() - 1);
+    const lastYearSameDate = d.toISOString().slice(0, 10);
+    const lastYear7DaysStart = shiftDate(lastYearSameDate, -6);
+
+    /* ---------- Current date ---------- */
     const foundDataForParticularDate = await OMDGRSolarBESS.findOne({
       where: {
-        dept_id: dept_id,
-        statistic_id: statistic_id,
-        entity_id: entity_id,
+        dept_id,
+        statistic_id,
+        entity_id,
         date: requestedDate,
       },
     });
 
     if (!foundDataForParticularDate) {
       return res.status(204).json({
-        message: "Data not found",
-      });
-    } else {
-      return res.status(200).json({
-        message: "Found data for date",
-        data: foundDataForParticularDate,
+        message: "Data not found for this date",
       });
     }
+
+    /* ---------- Last 7 days (current year) ---------- */
+    const last7DaysData = await OMDGRSolarBESS.findAll({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: {
+          [Sequelize.Op.between]: [last7DaysStart, last7DaysEnd],
+        },
+      },
+      order: [["date", "ASC"]],
+    });
+
+    /* ---------- Last year – same 7-day window ---------- */
+    const lastYear7DaysData = await OMDGRSolarBESS.findAll({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: {
+          [Sequelize.Op.between]: [lastYear7DaysStart, lastYearSameDate],
+        },
+      },
+      order: [["date", "ASC"]],
+    });
+
+    /* ---------- Last year March 31 ---------- */
+    const reqYear = new Date(requestedDate + "T00:00:00").getFullYear();
+    const lastYearMarch31 = `${reqYear - 1}-03-31`;
+
+    const lastYearMarch31Data = await OMDGRSolarBESS.findOne({
+      where: {
+        dept_id,
+        statistic_id,
+        entity_id,
+        date: lastYearMarch31,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Found data for date",
+      data: {
+        currentDate: foundDataForParticularDate,
+        last7Days: last7DaysData,
+        lastYearLast7Days: lastYear7DaysData,
+        lastYearMarch31: lastYearMarch31Data,
+      },
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Fetch OM Solar + BESS by date error:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -1849,6 +1914,7 @@ exports.updateOMDGRSolarBESSForOneDate = async (req, res) => {
       cumulative_bess_import,
       daily_cuf_worc,
       cuf_till_date,
+      remarks,
       is_active,
       action,
     } = req.body;
@@ -1861,313 +1927,90 @@ exports.updateOMDGRSolarBESSForOneDate = async (req, res) => {
       });
     }
 
-    // ✅ Normalize date (VERY IMPORTANT)
-    const normalizedDate = new Date(date);
-    normalizedDate.setHours(0, 0, 0, 0);
-    const startOfDay = new Date(normalizedDate);
-    const endOfDay = new Date(normalizedDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    console.log("normalizedDate", normalizedDate);
-
     const existingRecord = await OMDGRSolarBESS.findOne({
       where: {
         dept_id,
         statistic_id,
         entity_id,
-        where: Sequelize.where(
-          Sequelize.fn("DATE", Sequelize.col("date")),
-          date
-        ),
+        date,
       },
-      logging: console.log,
     });
 
-    console.log("existingRecord", existingRecord);
-
-    try {
-      if (action === "add") {
-        if (existingRecord) {
-          return res.status(409).json({
-            message: "Data already exists for this date. Use update instead.",
-          });
-        }
-
-        await OMDGRSolarBESS.create({
-          dept_id,
-          statistic_id,
-          entity_id,
-          date: normalizedDate,
-          days,
-          generation,
-          radiation,
-          bess_export,
-          bess_import,
-          plant_availability,
-          bess_availability,
-          grid_availability,
-          peak_power,
-          cumulative_generation,
-          cumulative_bess_export,
-          cumulative_bess_import,
-          daily_cuf_worc,
-          cuf_till_date,
-          is_active,
-        });
-
-        return res.status(201).json({
-          message: "Data added successfully",
+    /* ---------------- ADD ---------------- */
+    if (action === "add") {
+      if (existingRecord) {
+        return res.status(409).json({
+          message: "Data already exists for this date. Use update instead.",
         });
       }
 
-      if (action === "update") {
-        if (!existingRecord) {
-          return res.status(404).json({
-            message: "No data found for this date to update",
-          });
-        }
+      await OMDGRSolarBESS.create({
+        dept_id,
+        statistic_id,
+        entity_id,
+        date,
+        days,
+        generation,
+        radiation,
+        bess_export,
+        bess_import,
+        plant_availability,
+        bess_availability,
+        grid_availability,
+        peak_power,
+        cumulative_generation,
+        cumulative_bess_export,
+        cumulative_bess_import,
+        daily_cuf_worc,
+        cuf_till_date,
+        remarks,
+        is_active,
+      });
 
-        await existingRecord.update({
-          days,
-          generation,
-          radiation,
-          bess_export,
-          bess_import,
-          plant_availability,
-          bess_availability,
-          grid_availability,
-          peak_power,
-          cumulative_generation,
-          cumulative_bess_export,
-          cumulative_bess_import,
-          daily_cuf_worc,
-          cuf_till_date,
-          is_active,
-        });
-
-        return res.status(200).json({
-          message: "Data updated successfully",
-        });
-      }
-      // const foundDataForThisDate = await OMDGRSolarBESS.findOne({
-      //   where: {
-      //     dept_id,
-      //     statistic_id,
-      //     entity_id,
-      //     date: normalizedDate,
-      //   },
-      // });
-
-      // if (!foundDataForThisDate) {
-      //   // 🆕 CREATE
-      //   await OMDGRSolarBESS.create({
-      //     dept_id,
-      //     statistic_id,
-      //     entity_id,
-      //     date: normalizedDate,
-      //     days,
-      //     generation,
-      //     radiation,
-      //     bess_export,
-      //     bess_import,
-      //     plant_availability,
-      //     bess_availability,
-      //     grid_availability,
-      //     peak_power,
-      //     cumulative_generation,
-      //     cumulative_bess_export,
-      //     cumulative_bess_import,
-      //     daily_cuf_worc,
-      //     cuf_till_date,
-      //     is_active,
-      //   });
-
-      //   return res.status(201).json({
-      //     message: "Data created successfully",
-      //   });
-      // } else {
-      //   // 🔄 UPDATE
-      //   await foundDataForThisDate.update({
-      //     days,
-      //     generation,
-      //     radiation,
-      //     bess_export,
-      //     bess_import,
-      //     plant_availability,
-      //     bess_availability,
-      //     grid_availability,
-      //     peak_power,
-      //     cumulative_generation,
-      //     cumulative_bess_export,
-      //     cumulative_bess_import,
-      //     daily_cuf_worc,
-      //     cuf_till_date,
-      //     is_active,
-      //   });
-
-      //   return res.status(200).json({
-      //     message: "Data updated successfully",
-      //   });
-      // }
-    } catch (error) {
-      console.error("OM DGR Solar BESS error:", error);
-
-      return res.status(500).json({
-        error: "Internal server error",
+      return res.status(201).json({
+        message: "OM DGR Solar + BESS data added successfully",
       });
     }
 
-    return res.status(200).json({
-      message: "Updated the OM DGR Solar+BESS for this date",
-    });
+    /* ---------------- UPDATE ---------------- */
+    if (action === "update") {
+      if (!existingRecord) {
+        return res.status(404).json({
+          message: "No data found for this date to update",
+        });
+      }
+
+      await existingRecord.update({
+        days,
+        generation,
+        radiation,
+        bess_export,
+        bess_import,
+        plant_availability,
+        bess_availability,
+        grid_availability,
+        peak_power,
+        cumulative_generation,
+        cumulative_bess_export,
+        cumulative_bess_import,
+        daily_cuf_worc,
+        cuf_till_date,
+        remarks,
+        is_active,
+      });
+
+      return res.status(200).json({
+        message: "OM DGR Solar + BESS data updated successfully",
+      });
+    }
   } catch (error) {
-    console.error(error);
+    console.error("OM DGR Solar + BESS error:", error);
     return res.status(500).json({
       message: "Internal server error",
       error: error.message,
     });
   }
 };
-
-exports.getOMDGRSolarBESSSummary = async (req, res) => {
-  try {
-    const summary = await OMDGRSolarBESS.findOne({
-      attributes: [
-        [
-          Sequelize.fn("SUM", Sequelize.col("cumulative_generation")),
-          "cumulative_generation",
-        ],
-        [
-          Sequelize.fn("SUM", Sequelize.col("cumulative_bess_export")),
-          "cumulative_bess_export",
-        ],
-        [
-          Sequelize.fn("SUM", Sequelize.col("cumulative_bess_import")),
-          "cumulative_bess_import",
-        ],
-      ],
-      raw: true,
-    });
-
-    return res.status(200).json({
-      message: "Latest OM DGR Solar BESS record fetched successfully",
-      data: summary,
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
-};
-
-// exports.updateOMDGRSolarForOneDate = async (req, res) => {
-//   try {
-//     const { dept_id, statistic_id, entity_id } = req.query;
-//     console.log("req.body", req.body);
-
-//     const {
-//       date,
-//       days,
-//       generation,
-//       radiation,
-//       machine_availability,
-//       grid_availability,
-//       peak_power,
-//       cumulative_generation,
-//       cuf,
-//       cuf_till_date,
-//       is_active,
-//       action,
-//     } = req.body;
-
-//     console.log("req.query:", req.query);
-
-//     if (!action || !["add", "update"].includes(action)) {
-//       return res.status(400).json({
-//         message: "Invalid or missing action flag (add / update required)",
-//       });
-//     }
-
-//     const normalizedDate = new Date(date);
-//     normalizedDate.setHours(0, 0, 0, 0);
-//     const startOfDay = new Date(normalizedDate);
-//     startOfDay.setHours(0, 0, 0, 0);
-
-//     const endOfDay = new Date(normalizedDate);
-//     endOfDay.setHours(23, 59, 59, 999);
-
-//     const existingRecord = await OMDGRSolar.findOne({
-//       where: {
-//         dept_id,
-//         statistic_id,
-//         entity_id,
-//         [Sequelize.Op.and]: Sequelize.literal(`DATE(date) = '${date}'`),
-//       },
-//     });
-
-//     if (action === "add") {
-//       if (existingRecord) {
-//         return res.status(409).json({
-//           message: "Data already exists for this date. Use update instead.",
-//         });
-//       }
-
-//       await OMDGRSolar.create({
-//         dept_id,
-//         statistic_id,
-//         entity_id,
-//         date: normalizedDate,
-//         days,
-//         generation,
-//         radiation,
-//         machine_availability,
-//         grid_availability,
-//         peak_power,
-//         cumulative_generation,
-//         cuf,
-//         cuf_till_date,
-//         is_active,
-//       });
-
-//       return res.status(201).json({
-//         message: "OM DGR Solar data added successfully",
-//       });
-//     }
-
-//     if (action === "update") {
-//       if (!existingRecord) {
-//         return res.status(404).json({
-//           message: "No data found for this date to update",
-//         });
-//       }
-
-//       await existingRecord.update({
-//         days,
-//         generation,
-//         radiation,
-//         machine_availability,
-//         grid_availability,
-//         peak_power,
-//         cumulative_generation,
-//         cuf,
-//         cuf_till_date,
-//         is_active,
-//       });
-
-//       return res.status(200).json({
-//         message: "OM DGR Solar data updated successfully",
-//       });
-//     }
-//   } catch (error) {
-//     console.error("OM DGR Solar error:", error);
-//     return res.status(500).json({
-//       message: "Internal server error",
-//       error: error.message,
-//     });
-//   }
-// };
 
 exports.getOMSolarDataForDate = async (req, res) => {
   try {
@@ -2292,14 +2135,12 @@ exports.updateOMDGRSolarForOneDate = async (req, res) => {
       });
     }
 
-    const normalizedDate = date;
-
     const existingRecord = await OMDGRSolar.findOne({
       where: {
         dept_id,
         statistic_id,
         entity_id,
-        date: normalizedDate,
+        date,
       },
     });
 
@@ -2314,7 +2155,7 @@ exports.updateOMDGRSolarForOneDate = async (req, res) => {
         dept_id,
         statistic_id,
         entity_id,
-        date: normalizedDate,
+        date,
         days,
         generation,
         radiation,

@@ -297,7 +297,7 @@ const upsertOMSolarBESSData = async (req, res) => {
   }
 };
 
-const validateRowTypes = (row) => {
+const validateSolarRowTypes = (row) => {
   const errors = [];
 
   const numericFields = [
@@ -369,12 +369,13 @@ const uploadOMSolarFromExcel = async (req, res) => {
     }
 
     let inserted = 0;
+    let updated = 0;
     let skipped = 0;
 
     /* ---------- Process Rows ---------- */
     for (const row of rows) {
       try {
-        const typeErrors = validateRowTypes(row);
+        const typeErrors = validateSolarRowTypes(row);
 
         if (typeErrors.length) {
           console.error("❌ Datatype mismatch found:");
@@ -386,8 +387,8 @@ const uploadOMSolarFromExcel = async (req, res) => {
 
         const normalizedDate = normalizeDate(row.date);
 
-        // Check if record already exists for SAME entity + date
-        const exists = await OMDGRSolar.findOne({
+        /* ---------- Check Existing Record ---------- */
+        const existingRecord = await OMDGRSolar.findOne({
           where: {
             dept_id,
             statistic_id,
@@ -396,17 +397,7 @@ const uploadOMSolarFromExcel = async (req, res) => {
           },
         });
 
-        if (exists) {
-          skipped++;
-          continue;
-        }
-
-        await OMDGRSolar.create({
-          dept_id,
-          statistic_id,
-          entity_id,
-          om_dgr_solar_id: uuidv4(),
-          date: normalizedDate,
+        const payload = {
           days: row.days,
           generation: row.generation,
           radiation: row.radiation,
@@ -418,9 +409,24 @@ const uploadOMSolarFromExcel = async (req, res) => {
           cuf_till_date: row.cuf_till_date,
           remarks: row.remarks || null,
           is_active: 1,
-        });
+        };
 
-        inserted++;
+        if (existingRecord) {
+          /* ---------- UPDATE ---------- */
+          await existingRecord.update(payload);
+          updated++;
+        } else {
+          /* ---------- INSERT ---------- */
+          await OMDGRSolar.create({
+            dept_id,
+            statistic_id,
+            entity_id,
+            om_dgr_solar_id: uuidv4(),
+            date: normalizedDate,
+            ...payload,
+          });
+          inserted++;
+        }
       } catch (rowError) {
         console.error("Row failed:", row, rowError.message);
         skipped++;
@@ -432,6 +438,7 @@ const uploadOMSolarFromExcel = async (req, res) => {
       summary: {
         totalRows: rows.length,
         inserted,
+        updated,
         skipped,
       },
     });
@@ -439,6 +446,159 @@ const uploadOMSolarFromExcel = async (req, res) => {
     console.error("Excel Upload Error:", error);
     return res.status(500).json({
       message: "Internal Server Error",
+    });
+  }
+};
+
+const validateSolarBessRowTypes = (row) => {
+  const schema = {
+    days: "number",
+    generation: "number",
+    radiation: "number",
+    bess_export: "number",
+    bess_import: "number",
+    plant_availability: "number",
+    bess_availability: "number",
+    grid_availability: "number",
+    peak_power: "number",
+    cumulative_generation: "number",
+    cumulative_bess_export: "number",
+    cumulative_bess_import: "number",
+    daily_cuf_worc: "number",
+    cuf_till_date: "number",
+  };
+
+  const errors = [];
+
+  for (const field in schema) {
+    const val = row[field];
+    if (val === null || val === undefined || val === "") continue;
+
+    if (schema[field] === "number" && isNaN(Number(val))) {
+      errors.push({
+        field,
+        value: val,
+        type: typeof val,
+        expected: "number",
+      });
+    }
+  }
+
+  return errors;
+};
+
+const uploadOMSolarBessFromExcel = async (req, res) => {
+  try {
+    console.log("Solar+BESS, Upload from excel called");
+
+    const { dept_id, statistic_id, entity_id } = req.query;
+
+    if (!dept_id || !statistic_id || !entity_id) {
+      return res.status(400).json({
+        message: "dept_id, statistic_id and entity_id are required",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "Excel file is required",
+      });
+    }
+
+    /* ---------- Read Excel ---------- */
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      raw: false,
+      defval: null,
+    });
+
+    if (!rows.length) {
+      return res.status(400).json({ message: "Excel file is empty" });
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    /* ---------- Process Rows ---------- */
+    for (const row of rows) {
+      try {
+        const typeErrors = validateSolarBessRowTypes(row);
+        if (typeErrors.length) {
+          console.error("❌ Datatype mismatch:", typeErrors);
+          skipped++;
+          continue;
+        }
+
+        const normalizedDate = normalizeDate(row.date);
+        if (!normalizedDate) {
+          skipped++;
+          continue;
+        }
+
+        const payload = {
+          dept_id,
+          statistic_id,
+          entity_id,
+          date: normalizedDate,
+          days: row.days,
+          generation: row.generation,
+          radiation: row.radiation,
+          bess_export: row.bess_export,
+          bess_import: row.bess_import,
+          plant_availability: row.plant_availability,
+          bess_availability: row.bess_availability,
+          grid_availability: row.grid_availability,
+          peak_power: row.peak_power,
+          cumulative_generation: row.cumulative_generation,
+          cumulative_bess_export: row.cumulative_bess_export,
+          cumulative_bess_import: row.cumulative_bess_import,
+          daily_cuf_worc: row.daily_cuf_worc,
+          cuf_till_date: row.cuf_till_date,
+          remarks: row.remarks || null,
+          is_active: row.is_active ?? 1,
+        };
+
+        const existingRecord = await OMDGRSolarBESS.findOne({
+          where: {
+            dept_id,
+            statistic_id,
+            entity_id,
+            date: normalizedDate,
+          },
+        });
+
+        /* -------- ADD -------- */
+        if (!existingRecord) {
+          await OMDGRSolarBESS.create(payload);
+          inserted++;
+        } else {
+          /* -------- UPDATE -------- */
+          await existingRecord.update(payload);
+          updated++;
+        }
+      } catch (rowError) {
+        console.error("❌ Row failed:", row, rowError.message);
+        skipped++;
+      }
+    }
+
+    return res.status(200).json({
+      message: "OM DGR Solar + BESS Excel processed successfully",
+      summary: {
+        totalRows: rows.length,
+        inserted,
+        updated,
+        skipped,
+      },
+    });
+  } catch (error) {
+    console.error("Excel Upload Error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
     });
   }
 };
@@ -470,15 +630,15 @@ router.post(
 );
 
 router.post(
-  "/upsert",
+  "/solar_bess",
   verifyToken,
   upload.single("excelFile"),
-  upsertOMSolarBESSData
+  uploadOMSolarBessFromExcel
 );
 
 router.post(
-  "/upload",
-  // verifyToken,
+  "/solar",
+  verifyToken,
   upload.single("excelFile"),
   uploadOMSolarFromExcel
 );

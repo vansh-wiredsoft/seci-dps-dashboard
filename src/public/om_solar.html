@@ -64,6 +64,108 @@
         gap: 10px;
         flex-wrap: wrap;
       }
+
+      table {
+        background: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+
+      thead tr:first-child th {
+        background: linear-gradient(135deg, #1f4e79, #0b5ed7);
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        border: none;
+      }
+
+      thead tr:nth-child(2) th {
+        background: #eaf1fb;
+        color: #1f4e79;
+        font-size: 13px;
+        font-weight: 600;
+        border-bottom: 2px solid #cfe2ff;
+      }
+
+      tbody td {
+        font-size: 13px;
+        vertical-align: middle;
+        padding: 8px;
+        color: #333;
+      }
+
+      /* Zebra striping */
+      tbody tr:nth-child(even) {
+        background-color: #f8fbff;
+      }
+
+      /* Hover effect */
+      tbody tr:hover {
+        background-color: #e7f1ff;
+        transition: background-color 0.2s ease-in-out;
+      }
+
+      tbody td:nth-child(2),
+      tbody td:nth-child(6),
+      tbody td:nth-child(9) {
+        font-weight: 600;
+        color: #0b5ed7;
+      }
+
+      /* CUF columns */
+      tbody td:nth-child(3),
+      tbody td:nth-child(7),
+      tbody td:nth-child(10) {
+        font-weight: 600;
+        color: #198754;
+      }
+
+      tbody td:nth-child(5) {
+        font-style: italic;
+        color: #6c757d;
+      }
+
+      #last7DaysTable thead tr:first-child th {
+        background: linear-gradient(135deg, #198754, #20c997);
+        color: #fff;
+      }
+
+      #last7DaysTable thead tr:nth-child(2) th {
+        background: #e9f7ef;
+        color: #146c43;
+      }
+
+      /* Current year columns */
+      #last7DaysTable tbody td:nth-child(2),
+      #last7DaysTable tbody td:nth-child(3),
+      #last7DaysTable tbody td:nth-child(4),
+      #last7DaysTable tbody td:nth-child(5) {
+        color: #0b5ed7;
+        font-weight: 500;
+      }
+
+      /* Previous year columns */
+      #last7DaysTable tbody td:nth-child(6),
+      #last7DaysTable tbody td:nth-child(7),
+      #last7DaysTable tbody td:nth-child(8),
+      #last7DaysTable {
+        color: #6f42c1;
+        font-weight: 500;
+      }
+
+      .section-header {
+        background: linear-gradient(135deg, #1f4e79, #0b5ed7);
+        color: #fff;
+        padding: 12px;
+        font-size: 20px;
+        font-weight: 700;
+        text-align: center;
+        margin-top: 30px;
+        border-radius: 6px;
+        letter-spacing: 0.5px;
+      }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -95,20 +197,20 @@
           </a>
           <button
             class="btn btn-secondary btn-sm"
-            onclick="window.location.href='/'"
+            onclick="window.location.href='/home.html'"
           >
             Back to Home
           </button>
         </div>
       </div>
 
-      <div class="section-header">SECI 10MW Badi Sid</div>
+      <div class="section-header" id="main-heading"></div>
 
       <div class="table-responsive mt-3">
         <table class="table table-bordered">
           <thead>
             <tr>
-              <th colspan="4">As on Date</th>
+              <th colspan="5">As on Date</th>
               <th colspan="3">Year Till Date</th>
               <th colspan="2">Last FY Performance</th>
             </tr>
@@ -117,6 +219,7 @@
               <th>Exported Generation (MU)</th>
               <th>CUF (%)</th>
               <th>Peak Power (MW)</th>
+              <th>Remarks</th>
               <th>Exported Generation (MU)</th>
               <th>CUF (%)</th>
               <th>Peak Power (MW)</th>
@@ -140,18 +243,19 @@
           <thead>
             <tr>
               <th rowspan="2">Date</th>
-              <th colspan="4">Current Year</th>
+              <th colspan="5">Current Year</th>
               <th colspan="4">Previous Year</th>
             </tr>
             <tr>
               <th>Radiation POA</th>
               <th>Exported (kWh)</th>
               <th>CUF (%)</th>
-              <th>Peak Power</th>
+              <th>Peak Power (MW)</th>
+              <th>Remarks</th>
               <th>Radiation POA</th>
               <th>Exported (kWh)</th>
               <th>CUF (%)</th>
-              <th>Peak Power</th>
+              <th>Peak Power (MW)</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -218,7 +322,7 @@
           try {
             GlobalLoader.show();
             const res = await fileAuthFetch(
-              `api/data/om/solar/bess/upload?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
+              `/api/data/om/upload/solar?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
               {
                 method: "POST",
                 body: formData,
@@ -235,9 +339,10 @@
             if (summary) {
               alertMsg +=
                 `📊 Upload Summary:\n` +
-                `• Total Rows: ${summary.totalRows}\n` +
-                `• Inserted: ${summary.inserted}\n` +
-                `• Skipped: ${summary.skipped}`;
+                `• Total Rows: ${summary.totalRows ?? 0}\n` +
+                `• Inserted: ${summary.inserted ?? 0}\n` +
+                `• Updated: ${summary.updated ?? 0}\n` +
+                `• Skipped: ${summary.skipped ?? 0}`;
             }
 
             alert(alertMsg);
@@ -288,6 +393,25 @@
       //   });
       // }
 
+      async function fetchProjectName() {
+        try {
+          GlobalLoader.show();
+          const res = await authFetch(
+            `/api/data/project/find/name?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
+            {
+              method: "GET",
+            }
+          );
+
+          const json = await res.json();
+          document.getElementById("main-heading").innerHTML =
+            json.project_name || "";
+        } catch (err) {
+          console.error("API Error:", err);
+        } finally {
+          GlobalLoader.hide();
+        }
+      }
       async function fetchDataForDate(selectedDate) {
         try {
           GlobalLoader.show();
@@ -328,6 +452,7 @@
           <td>${(d.generation / 1000000).toFixed(6)}</td>
           <td>${d.cuf?.toFixed(2)}%</td>
           <td>${(d.peak_power / 1000)?.toFixed(3)}</td>
+          <td>${d.remarks}</td>
           <td>${(d.cumulative_generation / 1000000).toFixed(6)}</td>
           <td>${d.cuf_till_date?.toFixed(2)}%</td>
           <td>${(d.peak_power / 1000)?.toFixed(3)}</td>
@@ -395,6 +520,7 @@
           <td>${cur?.generation ?? ""}</td>
           <td>${cur ? cur.cuf.toFixed(2) : ""}%</td>
           <td>${cur?.peak_power ?? ""}</td>
+          <td>${cur?.remarks ?? ""}</td>
 
           <!-- Previous Year -->
           <td>${prev?.radiation ?? ""}</td>
@@ -449,12 +575,13 @@
 
         const generationData = last7Days.map((d) => d.generation);
         const cufData = last7Days.map((d) => d.cuf);
+        const remarksData = last7Days.map((d) => d.remarks || "No remarks");
 
         const ctx = document
           .getElementById("dailyGenerationChart")
           .getContext("2d");
 
-        // 🔁 Destroy previous chart (VERY IMPORTANT)
+        // 🔁 Destroy previous chart
         if (dailyGenerationChart) {
           dailyGenerationChart.destroy();
         }
@@ -482,12 +609,18 @@
           options: {
             responsive: true,
             plugins: {
-              legend: {
-                position: "top",
-              },
               tooltip: {
                 mode: "index",
                 intersect: false,
+                callbacks: {
+                  afterBody: function (tooltipItems) {
+                    const index = tooltipItems[0].dataIndex;
+                    return `Remarks: ${remarksData[index]}`;
+                  },
+                },
+              },
+              legend: {
+                position: "top",
               },
             },
             scales: {
@@ -530,6 +663,7 @@
 
         // Auto-fetch data for default date
         fetchDataForDate(defaultDate);
+        fetchProjectName();
       });
     </script>
     <script src="js/main.js"></script>

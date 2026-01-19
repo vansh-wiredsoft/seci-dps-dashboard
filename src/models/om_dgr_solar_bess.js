@@ -32,7 +32,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.UUIDV4,
       },
       date: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATEONLY,
         allowNull: false,
       },
       days: {
@@ -91,6 +91,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.FLOAT,
         allowNull: false,
         default: 0.0,
+      },
+      remarks: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
       },
       is_active: {
         type: DataTypes.BOOLEAN,

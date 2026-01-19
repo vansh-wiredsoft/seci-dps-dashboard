@@ -660,7 +660,7 @@
           chartInstance.dept_name = dept.dept_name;
           chartInstance.statistic_id = stat.statistic_id;
           chartInstance.relatedEntities = relatedEntities;
-        } else if (dept.dept_name !== "Home") {
+        } else if (dept.dept_name === "O&M") {
           document.getElementById("departmentContent").innerHTML = `
                     <h3><b>${dept.dept_name}</b></h3>
 
