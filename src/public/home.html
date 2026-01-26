@@ -1302,7 +1302,7 @@
           .querySelectorAll("#entitiesContainer > .card")
           .forEach((card) => {
             const entityName = card.querySelector(".entity-name").value.trim();
-            const entityValue = parseInt(
+            const entityValue = parseFloat(
               card.querySelector(".entity-value").value
             );
             if (!entityName || isNaN(entityValue)) return;
@@ -1446,7 +1446,7 @@
                   </div>
                   <div class="mb-2">
                     <label class="form-label">Project Capacity</label>
-                    <input type="number" class="form-control entity-value" />
+                    <input type="number" step="any" class="form-control entity-value" />
                   </div>
                   <div class="mb-2">
                     <label class="form-label">Fields</label>
@@ -1491,7 +1491,7 @@
           .forEach((card) => {
             const entity_id = card.dataset.entityId || null; // get entity_id if exists
             const entity_name = card.querySelector(".entity-name").value.trim();
-            const entity_value = parseInt(
+            const entity_value = parseFloat(
               card.querySelector(".entity-value").value.trim()
             );
             if (!entity_name || isNaN(entity_value)) return;

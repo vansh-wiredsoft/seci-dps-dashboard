@@ -29,7 +29,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       entity_value: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.FLOAT,
         allowNull: false,
       },
       is_active: {
@@ -41,7 +41,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       timestamps: true,
       freezeTableName: true,
-    }
+    },
   );
 
   DeptEntity.associate = (models) => {
