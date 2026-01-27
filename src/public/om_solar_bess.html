@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -191,13 +191,16 @@
           <a
             href="add_om_solar_bess_entry.html"
             class="btn btn-success btn-sm"
-            onclick="this.href = 'add_om_solar_bess_entry.html' + window.location.search"
+            onclick="
+              this.href =
+                'add_om_solar_bess_entry.html' + window.location.search
+            "
           >
             Add / Edit Data
           </a>
           <button
             class="btn btn-secondary btn-sm"
-            onclick="window.location.href='/home.html'"
+            onclick="window.location.href = '/home.html'"
           >
             Back to Home
           </button>
@@ -371,7 +374,7 @@
             `/api/data/project/find/name?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
             {
               method: "GET",
-            }
+            },
           );
 
           const json = await res.json();
@@ -387,22 +390,33 @@
       async function fetchDataForDate(selectedDate) {
         try {
           GlobalLoader.show();
+
           const res = await authFetch(
             `/api/data/om/solar_bess/date/one?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
             {
               method: "POST",
               body: JSON.stringify({ requestedDate: selectedDate }),
-            }
+            },
           );
 
+          // ✅ HANDLE 204 NO CONTENT
+          if (res.status === 204) {
+            showNoDataState();
+            return;
+          }
+
           const json = await res.json();
-          const data = json.data;
+          const data = json.data || {};
 
           bindCurrentDateTable(data.currentDate, data.lastYearMarch31);
-          bindLast7DaysTable(data.last7Days, data.lastYearLast7Days);
-          bindDailyGenerationChart(data.last7Days);
+          bindLast7DaysTable(
+            data.last7Days || [],
+            data.lastYearLast7Days || [],
+          );
+          bindDailyGenerationChart(data.last7Days || []);
         } catch (err) {
           console.error("API Error:", err);
+          showNoDataState();
         } finally {
           GlobalLoader.hide();
         }
@@ -413,8 +427,13 @@
        =============================== */
       function bindCurrentDateTable(d, lastFY) {
         if (!d) {
-          currentDateTbody.innerHTML =
-            "<tr><td colspan='14'>No data found</td></tr>";
+          currentDateTbody.innerHTML = `
+      <tr>
+        <td colspan="14" class="text-center text-muted py-3">
+          No data found
+        </td>
+      </tr>
+    `;
           return;
         }
 
@@ -422,28 +441,28 @@
     <tr>
       <!-- As on Date – Solar -->
       <td>${d.radiation?.toFixed(2) ?? "-"}</td>
-      <td>${(d.generation / 1e6).toFixed(6)}</td>
-      <td>${d.daily_cuf_worc?.toFixed(2)}%</td>
-      <td>${d.peak_power?.toFixed(3)}</td>
+      <td>${d.generation ? (d.generation / 1e6).toFixed(6) : "-"}</td>
+      <td>${d.daily_cuf_worc?.toFixed(2) ?? "-"}%</td>
+      <td>${d.peak_power?.toFixed(3) ?? "-"}</td>
 
       <!-- As on Date – BESS -->
-      <td>${d.bess_export?.toFixed(3)}</td>
-      <td>${d.bess_import?.toFixed(3)}</td>
-      <td>${d.remarks}</td>
+      <td>${d.bess_export?.toFixed(3) ?? "-"}</td>
+      <td>${d.bess_import?.toFixed(3) ?? "-"}</td>
+      <td>${d.remarks ?? "-"}</td>
 
       <!-- YTD -->
-      <td>${(d.cumulative_generation / 1e6).toFixed(6)}</td>
-      <td>${d.cuf_till_date?.toFixed(2)}%</td>
+      <td>${d.cumulative_generation ? (d.cumulative_generation / 1e6).toFixed(6) : "-"}</td>
+      <td>${d.cuf_till_date?.toFixed(2) ?? "-"}%</td>
 
-      <td>${d.cumulative_bess_export?.toFixed(3)}</td>
-      <td>${d.cumulative_bess_import?.toFixed(3)}</td>
+      <td>${d.cumulative_bess_export?.toFixed(3) ?? "-"}</td>
+      <td>${d.cumulative_bess_import?.toFixed(3) ?? "-"}</td>
 
       <!-- Last FY -->
       <td>${lastFY ? (lastFY.generation / 1e6).toFixed(6) : "-"}</td>
-      <td>${lastFY ? lastFY.daily_cuf_worc.toFixed(2) : "-"}%</td>
+      <td>${lastFY ? lastFY.daily_cuf_worc?.toFixed(2) + "%" : "-"}</td>
 
-      <td>${lastFY ? lastFY.bess_export.toFixed(3) : "-"}</td>
-      <td>${lastFY ? lastFY.bess_import.toFixed(3) : "-"}</td>
+      <td>${lastFY ? lastFY.bess_export?.toFixed(3) : "-"}</td>
+      <td>${lastFY ? lastFY.bess_import?.toFixed(3) : "-"}</td>
     </tr>
   `;
       }
@@ -454,7 +473,22 @@
       function bindLast7DaysTable(currentYear = [], previousYear = []) {
         last7DaysTbody.innerHTML = "";
 
-        for (let i = 0; i < currentYear.length; i++) {
+        if (!currentYear.length && !previousYear.length) {
+          last7DaysTbody.innerHTML = `
+      <tr>
+        <td colspan="14" class="text-center text-muted py-3">
+          No data found
+        </td>
+      </tr>
+    `;
+          return;
+        }
+
+        for (
+          let i = 0;
+          i < Math.max(currentYear.length, previousYear.length);
+          i++
+        ) {
           const cur = currentYear[i];
           const prev = previousYear[i];
 
@@ -480,6 +514,32 @@
         <td>${prev?.bess_import?.toFixed(3) ?? "-"}</td>
       </tr>
     `;
+        }
+      }
+
+      function showNoDataState() {
+        // Top table
+        currentDateTbody.innerHTML = `
+    <tr>
+      <td colspan="14" class="text-center text-muted py-3">
+        No data found for selected date
+      </td>
+    </tr>
+  `;
+
+        // Last 7 days table
+        last7DaysTbody.innerHTML = `
+    <tr>
+      <td colspan="14" class="text-center text-muted py-3">
+        No data found
+      </td>
+    </tr>
+  `;
+
+        // Destroy chart
+        if (dailyGenerationChart) {
+          dailyGenerationChart.destroy();
+          dailyGenerationChart = null;
         }
       }
 
@@ -515,13 +575,19 @@
       }
 
       function bindDailyGenerationChart(last7Days = []) {
-        if (!last7Days.length) return;
+        if (!last7Days.length) {
+          if (dailyGenerationChart) {
+            dailyGenerationChart.destroy();
+            dailyGenerationChart = null;
+          }
+          return;
+        }
 
         const labels = last7Days.map((d) =>
           new Date(d.date).toLocaleDateString("en-GB", {
             day: "2-digit",
             month: "short",
-          })
+          }),
         );
 
         const generationData = last7Days.map((d) => d.generation);
@@ -622,7 +688,7 @@
               {
                 method: "POST",
                 body: formData,
-              }
+              },
             );
             const { message, summary } = await res.json();
 

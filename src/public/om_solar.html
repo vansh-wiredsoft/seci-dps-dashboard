@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -197,7 +197,7 @@
           </a>
           <button
             class="btn btn-secondary btn-sm"
-            onclick="window.location.href='/home.html'"
+            onclick="window.location.href = '/home.html'"
           >
             Back to Home
           </button>
@@ -326,7 +326,7 @@
               {
                 method: "POST",
                 body: formData,
-              }
+              },
             );
             const { message, summary } = await res.json();
 
@@ -400,7 +400,7 @@
             `/api/data/project/find/name?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
             {
               method: "GET",
-            }
+            },
           );
 
           const json = await res.json();
@@ -415,22 +415,30 @@
       async function fetchDataForDate(selectedDate) {
         try {
           GlobalLoader.show();
+
           const res = await authFetch(
             `/api/data/om/solar/date/one?dept_id=${dept_id}&statistic_id=${statistic_id}&entity_id=${entity_id}`,
             {
               method: "POST",
               body: JSON.stringify({ requestedDate: selectedDate }),
-            }
+            },
           );
 
+          // ✅ HANDLE 204 NO CONTENT
+          if (res.status === 204) {
+            showNoDataState();
+            return;
+          }
+
           const json = await res.json();
-          const data = json.data;
+          const data = json.data || {};
 
           bindCurrentDateTable(data.currentDate, data.lastYearMarch31);
           bindLast7DaysTable(data.last7Days, data.lastYearLast7Days);
-          bindDailyGenerationChart(data.last7Days);
+          bindDailyGenerationChart(data.last7Days || []);
         } catch (err) {
           console.error("API Error:", err);
+          showNoDataState();
         } finally {
           GlobalLoader.hide();
         }
@@ -441,25 +449,30 @@
        =============================== */
       function bindCurrentDateTable(d, d1) {
         if (!d) {
-          currentDateTbody.innerHTML =
-            "<tr><td colspan='7'>No data found</td></tr>";
+          currentDateTbody.innerHTML = `
+      <tr>
+        <td colspan="10" class="text-center text-muted py-3">
+          No data found
+        </td>
+      </tr>
+    `;
           return;
         }
 
         currentDateTbody.innerHTML = `
-        <tr>
-          <td>${d.radiation?.toFixed(2) ?? "-"}</td>
-          <td>${(d.generation / 1000000).toFixed(6)}</td>
-          <td>${d.cuf?.toFixed(2)}%</td>
-          <td>${(d.peak_power / 1000)?.toFixed(3)}</td>
-          <td>${d.remarks}</td>
-          <td>${(d.cumulative_generation / 1000000).toFixed(6)}</td>
-          <td>${d.cuf_till_date?.toFixed(2)}%</td>
-          <td>${(d.peak_power / 1000)?.toFixed(3)}</td>
-          <td>${(d1.cumulative_generation / 1000000).toFixed(6)}</td>
-          <td>${d1.cuf_till_date?.toFixed(2)}%</td>
-        </tr>
-      `;
+    <tr>
+      <td>${d.radiation?.toFixed(2) ?? "-"}</td>
+      <td>${(d.generation / 1000000).toFixed(6)}</td>
+      <td>${d.cuf?.toFixed(2) ?? "-"}%</td>
+      <td>${(d.peak_power / 1000)?.toFixed(3) ?? "-"}</td>
+      <td>${d.remarks ?? "-"}</td>
+      <td>${(d.cumulative_generation / 1000000)?.toFixed(6) ?? "-"}</td>
+      <td>${d.cuf_till_date?.toFixed(2) ?? "-"}%</td>
+      <td>${(d.peak_power / 1000)?.toFixed(3) ?? "-"}</td>
+      <td>${d1 ? (d1.cumulative_generation / 1000000).toFixed(6) : "-"}</td>
+      <td>${d1 ? d1.cuf_till_date?.toFixed(2) + "%" : "-"}</td>
+    </tr>
+  `;
       }
 
       /* =========================================
@@ -472,7 +485,7 @@
         const dayMonthKey = (date) => {
           const d = new Date(date);
           return `${String(d.getDate()).padStart(2, "0")}-${String(
-            d.getMonth() + 1
+            d.getMonth() + 1,
           ).padStart(2, "0")}`;
         };
 
@@ -532,6 +545,32 @@
         });
       }
 
+      function showNoDataState() {
+        // Top table
+        currentDateTbody.innerHTML = `
+    <tr>
+      <td colspan="10" class="text-center text-muted py-3">
+        No data found for selected date
+      </td>
+    </tr>
+  `;
+
+        // Last 7 days table
+        last7DaysTbody.innerHTML = `
+    <tr>
+      <td colspan="9" class="text-center text-muted py-3">
+        No data found
+      </td>
+    </tr>
+  `;
+
+        // Destroy chart if exists
+        if (dailyGenerationChart) {
+          dailyGenerationChart.destroy();
+          dailyGenerationChart = null;
+        }
+      }
+
       function formatDate(dateStr) {
         const d = new Date(dateStr);
         return d.toLocaleDateString("en-GB", {
@@ -564,13 +603,19 @@
       }
 
       function bindDailyGenerationChart(last7Days = []) {
-        if (!last7Days.length) return;
+        if (!last7Days.length) {
+          if (dailyGenerationChart) {
+            dailyGenerationChart.destroy();
+            dailyGenerationChart = null;
+          }
+          return;
+        }
 
         const labels = last7Days.map((d) =>
           new Date(d.date).toLocaleDateString("en-GB", {
             day: "2-digit",
             month: "short",
-          })
+          }),
         );
 
         const generationData = last7Days.map((d) => d.generation);
